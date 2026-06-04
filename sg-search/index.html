@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab 03 — User Search</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-blob bg-blob--1" aria-hidden="true"></div>
+  <div class="bg-blob bg-blob--2" aria-hidden="true"></div>
+
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1>Lab 03 — User Search</h1>
+      <p class="instructions">
+        Build a name search against the local CSV API. Form controls, status messaging, and results wiring arrive in the next stories.
+      </p>
+    </header>
+
+    <main class="app-main">
+      <section id="search-panel" class="glass-card" aria-label="Search area">
+        <form id="search-form" class="search-form" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="firstName">First Name</label>
+              <input class="input" type="text" id="firstName" name="firstName" autocomplete="given-name" />
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last Name</label>
+              <input class="input" type="text" id="lastName" name="lastName" autocomplete="family-name" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="btn-search" class="btn btn-primary">Search</button>
+            <button type="button" id="btn-clear" class="btn btn-secondary">Clear</button>
+          </div>
+        </form>
+      </section>
+      <section id="status-panel" class="status-area" aria-live="polite">
+        <p id="status-message">Enter a name to begin searching.</p>
+      </section>
+      <section id="results-panel" class="glass-card" aria-label="Results area">
+        <!-- Results table: Story 2.4 -->
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

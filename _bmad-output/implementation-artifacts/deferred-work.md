@@ -16,3 +16,7 @@ Tracked items deferred during code review (not blocking story completion).
 - UTF-8 BOM not stripped before `parse()` — Excel-exported CSV may fail required-column check with confusing message
 - README hardcodes "Loaded 12 users" — update if `users.csv` row count changes
 - `loadUsers()` at module top-level — side effects on `require(server.js)`; extract if Epic 3 adds unit tests
+
+## Deferred from: code review of 2-3-connect-async-search-to-backend-api.md (2026-06-04)
+
+- Manual E2E verification blocked until Epic 1.4/1.5 (`GET /api/search`, CORS) land in `sg-search-service/server.js`

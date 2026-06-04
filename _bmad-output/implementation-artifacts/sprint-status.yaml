@@ -50,12 +50,12 @@ development_status:
   1-5-enable-cors-for-lab-frontend: review
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-build-glassmorphism-page-shell: backlog
-  2-2-implement-search-form-and-status-area: backlog
-  2-3-connect-async-search-to-backend-api: backlog
-  2-4-render-results-table-with-xss-protection: backlog
-  2-5-implement-clear-and-form-reset: backlog
+  epic-2: in-progress
+  2-1-build-glassmorphism-page-shell: review
+  2-2-implement-search-form-and-status-area: review
+  2-3-connect-async-search-to-backend-api: in-progress
+  2-4-render-results-table-with-xss-protection: review
+  2-5-implement-clear-and-form-reset: review
   epic-2-retrospective: optional
 
   epic-3: backlog
