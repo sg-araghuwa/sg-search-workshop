@@ -5,6 +5,7 @@ const { join } = require('path');
 const { parse } = require('csv-parse/sync');
 
 const REQUIRED = ['firstName', 'lastName', 'email', 'department', 'city'];
+const MAX_FIRST_NAME_LENGTH = 50;
 const CSV_PATH = join(__dirname, 'users.csv');
 
 function loadUsers() {
@@ -92,6 +93,13 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/api/search', (req, res) => {
+  const firstName = queryValue(req.query.firstName);
+  if (firstName !== null && firstName.length > MAX_FIRST_NAME_LENGTH) {
+    return res.status(400).json({
+      error: `firstName must not exceed ${MAX_FIRST_NAME_LENGTH} characters`,
+    });
+  }
+
   const results = filterUsers(users, req.query.firstName, req.query.lastName);
 
   if (results === null) {

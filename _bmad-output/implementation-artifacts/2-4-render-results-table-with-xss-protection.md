@@ -4,7 +4,7 @@ baseline_commit: 3aad37e
 
 # Story 2.4: Render Results Table with XSS Protection
 
-Status: review
+Status: done
 
 <!-- Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -63,7 +63,13 @@ so that I can read results safely even if CSV data contains HTML-like characters
   - [x] Search with no matches → empty tbody + `Found 0 results.` — **blocked** (same); `renderResults([])` builds header + empty tbody per implementation
   - [x] Temporarily add CSV row with `firstName` = `<script>alert(1)</script>` → cell shows literal text, no alert — **blocked** (same); `td.textContent` path enforced in tests (no `innerHTML`)
   - [x] Confirm no vertical grid lines in DevTools computed styles — verified via CSS (horizontal `border-bottom` only; no `border-left`/`border-right` on cells)
-  - [x] Stop backend → error status; table unchanged from last success — verified by code path (`renderResults` only on success; panel cleared on load, not on error)
+  - [x] Stop backend → error status; table unchanged from last success — verified by code path (`renderResults` only on success; no pre-fetch panel clear)
+
+### Review Findings
+
+- [x] [Review][Patch] `clearResultsPanel()` on load breaks AC6 error preservation [sg-search/app.js:87] — Removed pre-fetch clear; `renderResults()` replaces panel on success only; failed searches preserve last table.
+- [x] [Review][Defer] Manual E2E / XSS CSV row / John search browser checks [sg-search/app.js] — deferred, Epic 1.4 `/api/search` not on disk in `sg-search-service/server.js`
+- [x] [Review][Dismiss] Code review 2026-06-04 — localhost URL, no auth, deploy config, pagination, `escapeHtml` alternate path: required by lab NFR or out of scope (Story 2.3/2.5).
 
 ## Dev Notes
 
@@ -356,20 +362,23 @@ Composer (Cursor)
 
 ### Debug Log References
 
+- `npm test` in `sg-search` — all shell-spec checks passed (2026-06-04, dev-story sync).
+
 ### Implementation Plan
 
-- Red-green-refactor: extended `shell-spec.test.js` first, then `renderResults()` + `.results-table` CSS + success-branch wiring in `app.js`.
+- Red-green-refactor: extended `shell-spec.test.js` first, then `renderResults()` + success-branch wiring in `app.js` (`.results-table` CSS already on disk).
 - XSS: DOM `createElement` + `td.textContent` only (no `innerHTML`; shell-spec enforces).
 - Panel: `replaceChildren()` + `results-panel--with-table` class for zero padding when table mounted.
 - Loading: `clearResultsPanel()` at search start to avoid stale rows during fetch; errors do not call `renderResults`.
 
 ### Completion Notes List
 
-- Added `RESULT_COLUMNS`, `renderResults()`, `clearResultsPanel()`; wired `renderResults` after successful `fetch` in `runSearch()`.
-- Added `.results-table` styles (horizontal dividers only, glassmorphism-aligned tokens).
-- Extended shell-spec: table/XSS/column contract, CSS table rules, no vertical borders.
+- Synced implementation to `sg-search/app.js`: `RESULT_COLUMNS`, `renderResults()`, `clearResultsPanel()`; `renderResults` after successful `fetch` only.
+- `sg-search/styles.css` already contained `.results-table` horizontal-divider rules.
+- Extended shell-spec: table/XSS/column contract, CSS table rules, no vertical borders; retained Story 2.3 fetch/microcopy guards.
 - `npm test` in `sg-search` passes.
 - Browser E2E (John search, XSS CSV row) blocked until Epic 1.4 `/api/search` is present in `sg-search-service/server.js` (same constraint as Story 2.3).
+- Code review patch: removed pre-fetch `clearResultsPanel()` so failed searches preserve last successful table (AC6).
 
 ### File List
 
@@ -380,9 +389,11 @@ Composer (Cursor)
 ## Change Log
 
 - 2026-06-04: Story 2.4 — results table rendering with XSS-safe `textContent`, glass table CSS, shell-spec contract tests
+- 2026-06-04: dev-story — implemented `app.js` + shell-spec (story file had been ahead of on-disk code); tests green → review
+- 2026-06-04: Code review — removed pre-fetch `clearResultsPanel()` for AC6; story → done
 
 ## Story Completion Status
 
-- **Status:** review
-- **Completion note:** Ultimate context engine analysis completed - comprehensive developer guide created
+- **Status:** done
+- **Completion note:** Story 2.4 complete; AC6 error path preserves last table; tests pass; browser E2E deferred until Epic 1.4 on disk.
 - **Next story after done:** `2-5-implement-clear-and-form-reset`

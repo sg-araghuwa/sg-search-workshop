@@ -17,7 +17,15 @@
       <form id="search-form" class="search-form" autocomplete="off">
         <div class="field">
           <label for="firstName">First Name</label>
-          <input type="text" id="firstName" name="firstName" placeholder="e.g. John">
+          <input
+            type="text"
+            id="firstName"
+            name="firstName"
+            maxlength="50"
+            placeholder="e.g. John"
+            aria-describedby="firstName-char-hint"
+          >
+          <span id="firstName-char-hint" class="char-count-hint" role="tooltip">0 / 50</span>
         </div>
         <div class="field">
           <label for="lastName">Last Name</label>

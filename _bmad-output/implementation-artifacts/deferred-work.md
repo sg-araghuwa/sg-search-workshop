@@ -26,3 +26,7 @@ Tracked items deferred during code review (not blocking story completion).
 ## Deferred from: code review of 2-3-connect-async-search-to-backend-api.md (2026-06-04)
 
 - Manual E2E verification blocked until Epic 1.4/1.5 (`GET /api/search`, CORS) land in `sg-search-service/server.js`
+
+## Deferred from: code review of 2-4-render-results-table-with-xss-protection.md (2026-06-04)
+
+- Manual E2E (John search, empty tbody, XSS CSV row) blocked until Epic 1.4 `/api/search` is present in `sg-search-service/server.js`

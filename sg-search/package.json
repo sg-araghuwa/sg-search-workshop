@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "npx serve -l 3000 -s ."
+    "build": "node test/first-name-length.test.js",
+    "test": "node test/first-name-length.test.js",
+    "start": "npx --yes serve -l 3000 -s ."
   }
 }

@@ -81,6 +81,17 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
 }
 
+.char-count-hint {
+  align-self: flex-end;
+  font-size: 0.8rem;
+  color: #6e6e73;
+}
+
+.char-count-hint--limit {
+  color: #bf4800;
+  font-weight: 500;
+}
+
 .actions {
   grid-column: 1 / -1;
   display: flex;

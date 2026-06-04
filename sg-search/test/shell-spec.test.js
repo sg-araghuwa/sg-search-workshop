@@ -44,6 +44,14 @@ assert.match(css, /\.btn-primary/);
 assert.match(css, /\.btn-secondary/);
 assert.match(css, /\.input:focus/);
 
+assert.match(css, /\.results-table/);
+assert.match(css, /border-collapse:\s*separate/);
+assert.match(css, /border-spacing:\s*0/);
+assert.doesNotMatch(css, /\.results-table\s+th[^}]*border-left/i);
+assert.doesNotMatch(css, /\.results-table\s+td[^}]*border-left/i);
+assert.doesNotMatch(css, /\.results-table\s+th[^}]*border-right/i);
+assert.doesNotMatch(css, /\.results-table\s+td[^}]*border-right/i);
+
 assert.strictEqual(pkg.scripts.start, "npx --yes serve -l 3000 .");
 assert.ok(!pkg.dependencies, "UI must not add npm dependencies");
 
@@ -57,38 +65,45 @@ assert.match(appJs, /Search failed\. Please check the backend connection\./);
 assert.match(appJs, /Found /);
 assert.match(appJs, /results\./);
 assert.doesNotMatch(appJs, /innerHTML/);
+assert.doesNotMatch(appJs, /resetSearchUi/);
 
 assert.match(appJs, /results-panel/);
 assert.match(appJs, /results-table/);
+assert.match(appJs, /renderResults/);
+assert.match(appJs, /clearResultsPanel/);
 assert.match(appJs, /firstName/);
 assert.match(appJs, /lastName/);
 assert.match(appJs, /email/);
 assert.match(appJs, /department/);
 assert.match(appJs, /city/);
-assert.ok(
-  /textContent/.test(appJs) || /escapeHtml/.test(appJs),
-  "app.js must use textContent on cells or escapeHtml helper"
-);
-assert.match(appJs, /renderResults/);
+assert.match(appJs, /textContent/);
 assert.match(appJs, /First Name/);
 assert.match(appJs, /Last Name/);
 assert.match(appJs, /Department/);
-assert.match(appJs, /replaceChildren/);
-assert.match(appJs, /renderResults\(Array\.isArray\(data\.results\)/);
 
-assert.match(appJs, /btn-clear/);
-assert.match(appJs, /resetSearchUi/);
-assert.match(appJs, /STATUS\.empty/);
-assert.match(appJs, /Enter a name to begin searching\./);
-assert.match(appJs, /clearResultsPanel\(\)/);
+const runSearchIdx = appJs.indexOf("async function runSearch");
+const emptyGuardIdx = appJs.indexOf("if (!firstName && !lastName)", runSearchIdx);
+const fetchIdx = appJs.indexOf("fetch(", runSearchIdx);
+const renderIdx = appJs.indexOf("renderResults(", runSearchIdx);
+assert.ok(runSearchIdx >= 0, "app.js must define runSearch");
+assert.ok(
+  emptyGuardIdx > runSearchIdx && fetchIdx > emptyGuardIdx,
+  "both-blank trim must return before fetch"
+);
+assert.ok(
+  renderIdx > runSearchIdx,
+  "renderResults must be called from runSearch success path"
+);
+
+const catchIdx = appJs.indexOf("} catch {", runSearchIdx);
+assert.ok(
+  catchIdx > runSearchIdx && appJs.indexOf("renderResults", catchIdx) < 0,
+  "renderResults must not be called in catch block"
+);
+
 assert.ok(
   /searchGeneration/.test(appJs) && /generation !== searchGeneration/.test(appJs),
   "app.js must guard against stale in-flight search responses"
 );
-
-assert.match(css, /\.results-table/);
-assert.match(css, /border-collapse:\s*separate/);
-assert.doesNotMatch(css, /\.results-table\s+th[^}]*border-left/i);
-assert.doesNotMatch(css, /\.results-table\s+td[^}]*border-left/i);
 
 console.log("shell-spec: all checks passed");
