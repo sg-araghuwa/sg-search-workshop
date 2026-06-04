@@ -58,9 +58,9 @@ development_status:
   2-5-implement-clear-and-form-reset: review
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-create-setup-lab-ps1-bootstrap-script: backlog
-  3-2-create-verify-lab-ps1-validation-script: backlog
+  epic-3: in-progress
+  3-1-create-setup-lab-ps1-bootstrap-script: done
+  3-2-create-verify-lab-ps1-validation-script: done
   3-3-author-lab-03-search-app-guide-md: backlog
   3-4-add-vscode-launch-json-debug-configurations: backlog
   3-5-document-github-commit-workflow-with-fallbacks: backlog
