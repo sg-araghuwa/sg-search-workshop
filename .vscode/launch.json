@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Search API",
+      "cwd": "${workspaceFolder}/sg-search-service",
+      "program": "${workspaceFolder}/sg-search-service/server.js",
+      "console": "integratedTerminal",
+      "env": {
+        "PORT": "3001"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Search Frontend (serve)",
+      "cwd": "${workspaceFolder}/sg-search",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "3000", "-s", "."],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Search Frontend (Chrome)",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/sg-search"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Search App (API + Frontend)",
+      "configurations": ["Search API", "Search Frontend (serve)"]
+    }
+  ]
+}
