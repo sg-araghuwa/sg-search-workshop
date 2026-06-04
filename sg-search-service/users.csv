@@ -1,0 +1,13 @@
+firstName,lastName,email,department,city
+John,Smith,john.smith@example.com,Engineering,Seattle
+John,Doe,john.doe@example.com,Marketing,Portland
+John,Williams,john.williams@example.com,Sales,Denver
+Jane,Smith,jane.smith@example.com,HR,Seattle
+Alice,Johnson,alice.johnson@example.com,Engineering,Austin
+Bob,Johnson,bob.johnson@example.com,Finance,Chicago
+Carol,Davis,carol.davis@example.com,Marketing,Portland
+David,Miller,david.miller@example.com,Sales,Denver
+Emma,Wilson,emma.wilson@example.com,HR,Seattle
+Frank,Brown,frank.brown@example.com,Engineering,Austin
+Grace,Taylor,grace.taylor@example.com,Finance,Chicago
+Henry,Anderson,henry.anderson@example.com,Operations,Boston
