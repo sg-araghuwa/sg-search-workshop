@@ -3,65 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Search App</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Search App Lab</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="blob blob-1"></div>
   <div class="blob blob-2"></div>
 
-  <main class="container">
-    <h1>Search App</h1>
-
-    <section class="glass-panel" id="search-panel">
-      <form id="search-form" class="search-form" autocomplete="off">
-        <div class="form-group">
-          <div class="label-row">
-            <label for="firstName">First Name</label>
-            <span id="firstName-char-hint" class="char-count-hint" role="tooltip">0 / 50</span>
-          </div>
-          <input
-            type="text"
-            id="firstName"
-            name="firstName"
-            maxlength="50"
-            placeholder="First Name"
-            aria-describedby="firstName-char-hint"
-          >
-        </div>
-        <div class="form-group">
-          <label for="lastName">Last Name</label>
-          <input
-            type="text"
-            id="lastName"
-            name="lastName"
-            placeholder="Last Name"
-          >
-        </div>
-        <div class="button-group">
-          <button type="submit" id="btn-search" class="btn-search">Search</button>
-          <button type="button" id="btn-clear" class="btn-clear">Clear</button>
-        </div>
-      </form>
+  <main class="page">
+    <section id="sign-in-section" class="sign-in-section" hidden>
+      <div class="glass-login-card">
+        <h1 class="sign-in-title">Sign In</h1>
+        <p class="sign-in-lead">Sign in to access the employee search lab.</p>
+        <button type="button" id="sign-in-btn" class="btn-auth-primary">Sign In with Okta</button>
+        <p id="sign-in-error" class="sign-in-error" hidden role="alert">
+          Sign-in failed. Please try again.
+          <button type="button" id="auth-retry-btn" class="link-btn">Try again</button>
+        </p>
+      </div>
     </section>
 
-    <p id="status" class="status-area" role="status" aria-live="polite">Enter a name to begin searching.</p>
+    <section id="search-section" class="glass-card" hidden>
+      <header class="header">
+        <div class="header-row">
+          <div class="header-title">
+            <h1>Search App Lab</h1>
+            <p class="subtitle">Enter a first or last name to search the user directory. Backend runs on port 3001; this UI on port 3000.</p>
+          </div>
+          <div class="header-auth">
+            <span id="user-display" class="user-display"></span>
+            <button type="button" id="sign-out-btn" class="btn-clear">Sign Out</button>
+          </div>
+        </div>
+      </header>
 
-    <section class="glass-panel results-panel" id="results-panel" hidden>
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th>First Name</th>
-            <th>Last Name</th>
-            <th>Email</th>
-            <th>Department</th>
-            <th>City</th>
-          </tr>
-        </thead>
-        <tbody id="results-body"></tbody>
-      </table>
+      <section class="glass-panel" id="search-panel">
+        <form id="search-form" class="search-form" autocomplete="off">
+          <div class="form-group">
+            <div class="label-row">
+              <label for="firstName">First Name</label>
+              <span id="firstName-char-hint" class="char-count-hint" role="tooltip">0 / 50</span>
+            </div>
+            <input
+              type="text"
+              id="firstName"
+              name="firstName"
+              maxlength="50"
+              placeholder="First Name"
+              aria-describedby="firstName-char-hint"
+            >
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input
+              type="text"
+              id="lastName"
+              name="lastName"
+              placeholder="Last Name"
+            >
+          </div>
+          <div class="button-group">
+            <button type="submit" id="btn-search" class="btn-search">Search</button>
+            <button type="button" id="btn-clear" class="btn-clear">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <p id="status" class="status-area" role="status" aria-live="polite">Enter a name to begin searching.</p>
+
+      <section class="glass-panel results-panel" id="results-panel" hidden>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th>Email</th>
+              <th>Department</th>
+              <th>City</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </section>
     </section>
   </main>
-  <script src="app.js"></script>
+  <script src="https://global.oktacdn.com/okta-auth-js/7.14.1/okta-auth-js.min.js"></script>
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

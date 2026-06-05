@@ -1,5 +1,13 @@
 const API_BASE = "http://localhost:3001";
 
+const signInSection = document.getElementById("sign-in-section");
+const searchSection = document.getElementById("search-section");
+const signInBtn = document.getElementById("sign-in-btn");
+const signOutBtn = document.getElementById("sign-out-btn");
+const userDisplay = document.getElementById("user-display");
+const signInError = document.getElementById("sign-in-error");
+const authRetryBtn = document.getElementById("auth-retry-btn");
+
 const form = document.getElementById("search-form");
 const firstNameInput = document.getElementById("firstName");
 const firstNameCharHint = document.getElementById("firstName-char-hint");
@@ -14,6 +22,11 @@ const EMPTY_MESSAGE = "Enter a name to begin searching.";
 const FIRST_NAME_TOO_LONG_MESSAGE = `First name must be ${MAX_FIRST_NAME_LENGTH} characters or fewer.`;
 const LOADING_MESSAGE = "Searching database...";
 const ERROR_MESSAGE = "Search failed. Please check the backend connection.";
+const SIGNING_IN_MESSAGE = "Signing you in...";
+const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired. Please sign in again.";
+const NOT_SIGNED_IN_MESSAGE =
+  "You are not signed in. Please sign in to search.";
 
 const COLUMNS = ["firstName", "lastName", "email", "department", "city"];
 
@@ -21,6 +34,47 @@ let searchGeneration = 0;
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function showSignInSurface(showError) {
+  document.body.classList.add("auth-mode");
+  signInSection.hidden = false;
+  searchSection.hidden = true;
+  signInError.hidden = true;
+  if (showError) {
+    signInError.hidden = false;
+  }
+}
+
+function showSearchSurface() {
+  document.body.classList.remove("auth-mode");
+  signInSection.hidden = true;
+  searchSection.hidden = false;
+  signInError.hidden = true;
+}
+
+function truncateDisplayName(value, maxLength) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "";
+  }
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 1)}…`;
+}
+
+async function enterAuthenticatedState() {
+  showSearchSurface();
+  const displayName = await auth.getUserDisplayName();
+  const truncated = truncateDisplayName(displayName, 40);
+  userDisplay.textContent = truncated;
+  if (truncated && displayName && displayName.length > 40) {
+    userDisplay.title = displayName;
+  } else {
+    userDisplay.removeAttribute("title");
+  }
+  setStatus(EMPTY_MESSAGE);
 }
 
 function updateFirstNameCharCount() {
@@ -84,6 +138,14 @@ async function runSearch() {
     return;
   }
 
+  const token = await auth.getAccessToken();
+  if (!token) {
+    setStatus(SESSION_EXPIRED_MESSAGE);
+    clearResultsPanel();
+    auth.signIn().catch(() => showSignInSurface(true));
+    return;
+  }
+
   const params = new URLSearchParams();
   if (firstName) params.set("firstName", firstName);
   if (lastName) params.set("lastName", lastName);
@@ -92,7 +154,18 @@ async function runSearch() {
   setStatus(LOADING_MESSAGE);
 
   try {
-    const response = await fetch(`${API_BASE}/api/search?${params.toString()}`);
+    const response = await fetch(`${API_BASE}/api/search?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      setStatus(NOT_SIGNED_IN_MESSAGE);
+      clearResultsPanel();
+      auth.signIn().catch(() => showSignInSurface(true));
+      return;
+    }
 
     if (generation !== searchGeneration) {
       return;
@@ -100,6 +173,7 @@ async function runSearch() {
 
     if (!response.ok) {
       setStatus(ERROR_MESSAGE);
+      clearResultsPanel();
       return;
     }
 
@@ -117,6 +191,55 @@ async function runSearch() {
       return;
     }
     setStatus(ERROR_MESSAGE);
+    clearResultsPanel();
+  }
+}
+
+async function bootAuth() {
+  if (auth.consumeVoluntaryLogout()) {
+    showSignInSurface(false);
+    return;
+  }
+
+  try {
+    const state = await auth.initAuth();
+
+    if (state === "callback") {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has("code")) {
+        window.history.replaceState({}, document.title, "/");
+        showSignInSurface(params.has("error"));
+        return;
+      }
+
+      showSearchSurface();
+      setStatus(SIGNING_IN_MESSAGE);
+      try {
+        await auth.handleCallback();
+        await enterAuthenticatedState();
+      } catch {
+        showSignInSurface(true);
+      }
+      return;
+    }
+
+    if (state === "authenticated") {
+      const token = await auth.getAccessToken();
+      if (!token) {
+        showSignInSurface(false);
+        return;
+      }
+      try {
+        await enterAuthenticatedState();
+      } catch {
+        showSignInSurface(false);
+      }
+      return;
+    }
+
+    showSignInSurface(false);
+  } catch {
+    showSignInSurface(false);
   }
 }
 
@@ -135,6 +258,33 @@ form.addEventListener("submit", (event) => {
 });
 
 clearBtn.addEventListener("click", resetUi);
-
 firstNameInput.addEventListener("input", updateFirstNameCharCount);
-updateFirstNameCharCount();
+
+signInBtn.addEventListener("click", () => {
+  signInError.hidden = true;
+  auth.signIn().catch(() => showSignInSurface(true));
+});
+
+authRetryBtn.addEventListener("click", () => {
+  signInError.hidden = true;
+  auth.signIn().catch(() => showSignInSurface(true));
+});
+
+signOutBtn.addEventListener("click", async () => {
+  searchGeneration += 1;
+  resetUi();
+  userDisplay.textContent = "";
+  userDisplay.removeAttribute("title");
+  signInError.hidden = true;
+  showSignInSurface(false);
+  try {
+    await auth.signOut();
+  } catch {
+    signInError.hidden = true;
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  updateFirstNameCharCount();
+  bootAuth();
+});

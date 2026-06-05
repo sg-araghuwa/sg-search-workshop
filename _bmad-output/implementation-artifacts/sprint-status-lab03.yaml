@@ -1,0 +1,7 @@
+# MERGED into sprint-status.yaml (2026-06-05)
+# LAB-03 entries now live under lab03-* keys in the combined file.
+# This file is kept as a pointer only — do not edit for tracking.
+
+merged_into: sprint-status.yaml
+merged_date: 2026-06-05
+note: "See sprint-status.yaml Section A (lab03-* keys) for LAB-03 history."

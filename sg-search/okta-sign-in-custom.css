@@ -1,0 +1,71 @@
+/*
+ * Okta Admin Console → Settings → Customization → Sign-in page → Custom CSS
+ * Visual reference: ux-designs/ux-AI_POC_Lab4-2026-06-05/DESIGN.md (glass landscape)
+ */
+
+body {
+  background: linear-gradient(180deg, #b8d4e8 0%, #7eb3d4 45%, #5a9bb8 100%) !important;
+}
+
+.auth-container,
+.auth-content {
+  background: rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 32px rgba(33, 77, 114, 0.2) !important;
+  max-width: 400px !important;
+  padding: 40px !important;
+}
+
+.auth-header h1,
+.okta-form-title {
+  text-transform: uppercase !important;
+  letter-spacing: 0.12em !important;
+  font-weight: 700 !important;
+}
+
+.o-form-fieldset,
+.o-form-theme {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.o-form-label {
+  font-weight: 500 !important;
+}
+
+.o-form-input,
+.o-form-input:focus {
+  border: none !important;
+  border-bottom: 1px solid rgba(26, 26, 26, 0.35) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 44px !important;
+}
+
+.o-form-input:focus {
+  border-bottom-color: #214d72 !important;
+}
+
+.button-primary,
+.button.button-primary {
+  width: 100% !important;
+  height: 48px !important;
+  border: none !important;
+  border-radius: 24px !important;
+  background: linear-gradient(90deg, #214d72 0%, #6eb5d8 100%) !important;
+  font-weight: 600 !important;
+}
+
+.button-primary:hover {
+  filter: brightness(1.06);
+}
+
+.auth-footer a,
+.registration-link a {
+  color: #214d72 !important;
+  font-weight: 700 !important;
+}

@@ -5,11 +5,18 @@ const cors = require('cors');
 const { connectDB } = require('./lib/db');
 const { seedFromCsv } = require('./lib/seed');
 const User = require('./models/User');
+const requireAuth = require('./middleware/requireAuth');
 
 const MAX_NAME_LENGTH = 50;
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false,
+  })
+);
 
 function resolvePort() {
   if (process.env.PORT === undefined || process.env.PORT === '') {
@@ -53,7 +60,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', requireAuth, async (req, res) => {
   const fn = queryValue(req.query.firstName);
   const ln = queryValue(req.query.lastName);
 

@@ -6,5 +6,8 @@
     "build": "node test/first-name-length.test.js",
     "test": "node test/first-name-length.test.js",
     "start": "npx --yes serve -l 3000 -s ."
+  },
+  "dependencies": {
+    "@okta/okta-auth-js": "7.14.1"
   }
 }

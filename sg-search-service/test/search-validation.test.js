@@ -18,10 +18,28 @@ if (!MONGODB_URI) {
   process.exit(0);
 }
 
+const TEST_ENV = {
+  ...process.env,
+  NODE_ENV: 'test',
+  PORT: String(PORT),
+  MONGODB_URI,
+  OKTA_ISSUER: 'https://example.okta.com/oauth2/default',
+  OKTA_AUDIENCE: 'test-client-id',
+  OKTA_TEST_MOCK: '1',
+};
+
 function request(pathname) {
   return new Promise((resolve, reject) => {
-    http
-      .get(`${BASE}${pathname}`, (res) => {
+    const url = new URL(`${BASE}${pathname}`);
+    const req = http.request(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: `${url.pathname}${url.search}`,
+        method: 'GET',
+        headers: { Authorization: 'Bearer test-token' },
+      },
+      (res) => {
         let body = '';
         res.on('data', (chunk) => {
           body += chunk;
@@ -29,14 +47,16 @@ function request(pathname) {
         res.on('end', () => {
           resolve({ status: res.statusCode, body: JSON.parse(body) });
         });
-      })
-      .on('error', reject);
+      }
+    );
+    req.on('error', reject);
+    req.end();
   });
 }
 
 const child = spawn(process.execPath, ['server.js'], {
   cwd: ROOT,
-  env: { ...process.env, MONGODB_URI, PORT: String(PORT) },
+  env: TEST_ENV,
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
