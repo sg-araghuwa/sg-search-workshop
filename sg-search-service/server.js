@@ -1,47 +1,27 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
-const { readFileSync } = require('fs');
-const { join } = require('path');
-const { parse } = require('csv-parse/sync');
+const { connectDB } = require('./lib/db');
+const { seedFromCsv } = require('./lib/seed');
+const User = require('./models/User');
 
-const REQUIRED = ['firstName', 'lastName', 'email', 'department', 'city'];
-const MAX_FIRST_NAME_LENGTH = 50;
-const CSV_PATH = join(__dirname, 'users.csv');
+const MAX_NAME_LENGTH = 50;
 
-function loadUsers() {
-  let raw;
-  try {
-    raw = readFileSync(CSV_PATH, 'utf8');
-  } catch (err) {
-    throw new Error(`users.csv not found at ${CSV_PATH}: ${err.message}`);
+const app = express();
+app.use(cors());
+
+function resolvePort() {
+  if (process.env.PORT === undefined || process.env.PORT === '') {
+    return 3001;
   }
 
-  let records;
-  try {
-    records = parse(raw, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_column_count: false,
-    });
-  } catch (err) {
-    throw new Error(`users.csv parse error: ${err.message}`);
+  const port = Number(process.env.PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid PORT: ${process.env.PORT}`);
   }
 
-  if (records.length === 0) {
-    throw new Error('users.csv has no data rows (header only or empty file)');
-  }
-
-  const headers = Object.keys(records[0]);
-  for (const col of REQUIRED) {
-    if (!headers.includes(col)) {
-      throw new Error(
-        `users.csv missing required column "${col}". Found: ${headers.join(', ')}`
-      );
-    }
-  }
-
-  return records;
+  return port;
 }
 
 function queryValue(value) {
@@ -50,39 +30,20 @@ function queryValue(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function filterUsers(allUsers, firstName, lastName) {
-  const fn = queryValue(firstName);
-  const ln = queryValue(lastName);
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  if (fn === null && ln === null) {
-    return null;
+function buildSearchFilter(fn, ln) {
+  const filter = {};
+  if (fn !== null) {
+    filter.firstName = { $regex: `^${escapeRegex(fn)}$`, $options: 'i' };
   }
-
-  return allUsers.filter((user) => {
-    if (fn !== null && user.firstName.toLowerCase() !== fn.toLowerCase()) {
-      return false;
-    }
-    if (ln !== null && user.lastName.toLowerCase() !== ln.toLowerCase()) {
-      return false;
-    }
-    return true;
-  });
+  if (ln !== null) {
+    filter.lastName = { $regex: `^${escapeRegex(ln)}$`, $options: 'i' };
+  }
+  return filter;
 }
-
-let users = [];
-
-try {
-  users = loadUsers();
-  console.log(`Loaded ${users.length} users from users.csv`);
-} catch (err) {
-  console.error(`Startup failed: ${err.message}`);
-  process.exit(1);
-}
-
-const app = express();
-app.use(cors());
-
-const PORT = process.env.PORT || 3001;
 
 app.get('/', (req, res) => {
   res.type('text').send('sg-search-service is running.');
@@ -92,25 +53,71 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-app.get('/api/search', (req, res) => {
-  const firstName = queryValue(req.query.firstName);
-  if (firstName !== null && firstName.length > MAX_FIRST_NAME_LENGTH) {
+app.get('/api/search', async (req, res) => {
+  const fn = queryValue(req.query.firstName);
+  const ln = queryValue(req.query.lastName);
+
+  if (fn !== null && fn.length > MAX_NAME_LENGTH) {
     return res.status(400).json({
-      error: `firstName must not exceed ${MAX_FIRST_NAME_LENGTH} characters`,
+      error: `firstName must not exceed ${MAX_NAME_LENGTH} characters`,
     });
   }
 
-  const results = filterUsers(users, req.query.firstName, req.query.lastName);
-
-  if (results === null) {
+  if (ln !== null && ln.length > MAX_NAME_LENGTH) {
+    return res.status(400).json({
+      error: `lastName must not exceed ${MAX_NAME_LENGTH} characters`,
+    });
+  }
+  if (fn === null && ln === null) {
     return res.status(400).json({
       error: 'At least one of firstName or lastName is required',
     });
   }
 
-  res.json({ count: results.length, results });
+  try {
+    const filter = buildSearchFilter(fn, ln);
+    const results = await User.find(filter)
+      .select('firstName lastName email department city -_id')
+      .lean();
+    res.json({ count: results.length, results });
+  } catch (err) {
+    console.error('Search error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`sg-search-service listening on http://localhost:${PORT}`);
+async function main() {
+  const uri = process.env.MONGODB_URI?.trim();
+  if (!uri) {
+    console.error('Startup failed: MONGODB_URI is required');
+    process.exit(1);
+  }
+
+  await connectDB();
+
+  try {
+    await User.syncIndexes();
+  } catch (err) {
+    console.warn('Index sync warning:', err.message);
+  }
+
+  await seedFromCsv();
+
+  const count = await User.countDocuments();
+  console.log(`Connected to MongoDB — ${count} users in users collection`);
+
+  const port = resolvePort();
+  const server = app.listen(port, () => {
+    console.log(`sg-search-service listening on http://localhost:${port}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Startup failed:', err.message);
+    process.exit(1);
+  });
+}
+
+main().catch((err) => {
+  console.error('Startup failed:', err.message);
+  process.exit(1);
 });

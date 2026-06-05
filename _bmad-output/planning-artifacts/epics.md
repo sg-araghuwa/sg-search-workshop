@@ -1,338 +1,386 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 status: complete
+completedAt: '2026-06-05'
 inputDocuments:
-  - "_bmad-output/planning-artifacts/prds/prd-AI_POC_Lab4-2026-06-03/prd.md"
-  - "_bmad-output/planning-artifacts/ux-designs/ux-AI_POC_Lab4-2026-06-03/DESIGN.md"
-  - "_bmad-output/planning-artifacts/ux-designs/ux-AI_POC_Lab4-2026-06-03/EXPERIENCE.md"
+  - "_bmad-output/planning-artifacts/prds/prd-AI_POC_Lab4-2026-06-05/prd.md"
+  - "_bmad-output/planning-artifacts/architecture-AI_POC_Lab4-2026-06-05.md"
 ---
 
 # AI_POC_Lab4 - Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for AI_POC_Lab4, decomposing the requirements from the PRD, UX Design, and lab technical constraints into implementable stories.
-
-**Scope note:** Architecture.md and tech-stack.md describe a prior Task Manager concept and are excluded. This breakdown targets the Search App Hands-on Lab per PRD and UX specs.
+This document provides the complete epic and story breakdown for AI_POC_Lab4, decomposing the requirements from the PRD, UX Design if it exists, and Architecture requirements into implementable stories.
 
 ## Requirements Inventory
 
 ### Functional Requirements
 
-FR1: The backend shall expose `GET /api/search?firstName=&lastName=` returning JSON `{ count, results[] }`.
-FR2: Search matching shall be case-insensitive; provided fields only shall be matched; empty parameters shall act as wildcards; HTTP 400 shall be returned when all parameters are missing.
-FR3: The backend shall expose `GET /health` returning HTTP 200 with `status: ok`.
-FR4: The backend shall enable CORS for requests originating from port 3000 (frontend).
-FR5: The frontend shall provide a search form with First Name and Last Name fields.
-FR6: The frontend shall support Search via async fetch and Clear to reset form and results, with no full page reloads.
-FR7: The frontend shall display search results in a table with columns: firstName, lastName, email, department, city.
-FR8: The frontend shall display a status area showing "Searching..." during fetch and "Found N results" or error messages on completion.
-FR9: The frontend shall escape all dynamic output rendered in the results table to prevent XSS.
-FR10: The project shall include `LAB-03-Search-App-Guide.md` written for a Senior Developer/Architect audience.
-FR11: The project shall include `setup-lab.ps1` and `verify-lab.ps1` Windows PowerShell scripts.
-FR12: The project shall include VS Code `launch.json` for debugging backend and frontend.
-FR13: The project shall document GitHub commit steps including manual `git remote add` fallback when `gh` CLI is unavailable.
+FR-1: Environment-Based MongoDB Connection — The backend loads `MONGODB_URI` from environment variables (via `.env` in local development). When unset or empty, logs `Startup failed: MONGODB_URI is required` and exits code 1 before `app.listen`. When invalid or Atlas unreachable, logs `Startup failed:` with Mongoose error and exits code 1. On success, console logs connected database name and user count from `users` collection.
+
+FR-2: Health Endpoint (Unchanged Contract) — `GET /health` returns HTTP 200 with JSON `{ "status": "ok" }` when server is running. Health endpoint does not perform a new MongoDB round-trip on every request (liveness only).
+
+FR-3: Mongoose User Schema & Model — A `User` Mongoose model defines document shape: `firstName`, `lastName`, `email`, `department`, `city` (all required strings, trimmed). `email` is unique. Schema file at `models/User.js`. API serialization excludes `_id` and `__v` from search results. `mongoose` in `package.json` dependencies.
+
+FR-4: Automatic Startup Seed from CSV — After `mongoose.connect` succeeds and before `app.listen`, backend reads `sg-search-service/users.csv` and upserts all data rows via `User` model (upsert on `email`). `npm start` alone triggers connect → auto-seed → listen. Console logs number of records upserted (expect 12). Missing `users.csv` causes `Startup failed:` and exit code 1. Re-running does not create duplicates. Auto-seed completes before HTTP traffic accepted.
+
+FR-5: Retire Runtime CSV Loading — `server.js` no longer reads or parses `users.csv` at startup for search. `csv-parse` may remain for auto-seed only. Startup log messages reference MongoDB, not `users.csv`. `users.csv` remains in repo as seed input only.
+
+FR-6: Search Query Semantics (Preserved) — `GET /api/search` accepts optional `firstName` and `lastName` with case-insensitive exact match; empty/missing parameter acts as wildcard. Both provided = AND. Neither provided = HTTP 400 `{ "error": "At least one of firstName or lastName is required" }`. `firstName` > 50 chars = HTTP 400 with existing validation message. Results include all five fields. No matches returns `{ "count": 0, "results": [] }`.
+
+FR-7: Mongoose Query Implementation — Search builds `User.find(...)` equivalent to prior in-memory `filterUsers` logic. Case-insensitive exact match via `$regex` or collation. Both params = AND. Single param = wildcard for other field. Results match CSV implementation for standard test matrix in README.
+
+FR-8: Optional Search Indexes — Indexes on `firstName` and/or `lastName` are performance-only; search results must not change. Index sync failure logs warning but does not block startup.
+
+FR-9: README Updates — `sg-search-service/README.md` documents Atlas connection, shared `.env` setup, automatic startup seeding, and updated troubleshooting. Removes runtime CSV loading instructions. Includes `.env.example` with `MONGODB_URI=` placeholder. Test matrix table unchanged. References `User` model location.
+
+FR-10: Lab Guide Updates — `LAB-03-Search-App-Guide.md` replaces CSV authoring/loading with MongoDB configuration within existing timing blocks. Architecture diagram shows MongoDB Atlas. Prerequisites include Atlas connection string. Backend phase covers `.env`, Mongoose model, `npm start`. Troubleshooting includes missing `MONGODB_URI`, Atlas connectivity/IP allowlist, auto-seed failure.
+
+FR-11: Setup Script Updates — `setup-lab.ps1` validates MongoDB readiness: checks `.env` with non-empty `MONGODB_URI`, verifies Node 18+, runs `npm install`. Does not prompt for manual seed. Confirms `users.csv` exists as seed input only.
+
+FR-12: Verification Script Compatibility — `verify-lab.ps1` continues to pass against MongoDB-backed backend without test case changes. Troubleshooting hints mention MongoDB connection failures. Expected counts and field validation unchanged.
+
+FR-13: Repository Hygiene — `.env` in `.gitignore`. `.env.example` committed with placeholder only. No connection strings in source code, guides, or committed config.
 
 ### NonFunctional Requirements
 
-NFR1: Time to First Success (first visible search result) shall be under 15 minutes for lab participants.
-NFR2: Lab completion rate target shall exceed 90% within the 30-minute lab window.
-NFR3: Complexity guard — avoid "best practice" additions that increase code size by more than 20%.
-NFR4: Runtime shall be Node.js v18 or newer.
-NFR5: Frontend shall run on port 3000; backend shall run on port 3001.
-NFR6: Lab scripts and instructions shall target Windows PowerShell.
-NFR7: No authentication or authorization shall be implemented.
-NFR8: Data storage shall be CSV file only (no persistent database).
-NFR9: Frontend shall use Vanilla HTML/CSS/JS only (no React or other UI frameworks).
-NFR10: Deployment shall be localhost only (no cloud hosting).
+NFR-1 (SM-1): Search Parity — 100% of README/verify-lab test matrix cases return identical `count` and equivalent `results` vs. CSV baseline. Primary architectural validation gate.
+
+NFR-2 (SM-2): Lab Time Preserved — Backend phase (05–15 min block) completable without local DB install. Median setup including `.env` + `npm start` ≤ 5 minutes.
+
+NFR-3 (SM-3): Zero Frontend Diffs — No file changes under `sg-search/` required for a passing lab run. API serialization excludes `_id` and `__v`.
+
+NFR-4 (SM-4): Documentation Completeness — All four artifacts (README, lab guide, setup script, verify script) reference MongoDB workflow; no remaining CSV runtime-loading instructions.
+
+NFR-5 (SM-C1): Architectural Restraint — Single `User` Mongoose model only. No repository/service layers, multiple collections, or migrations frameworks.
+
+NFR-6: Security — Shared Atlas credentials via `.env`. `.gitignore` excludes secrets. No connection strings in source or committed config. CORS unchanged.
+
+NFR-7: Reliability — Fail-fast startup on connection, seed, and config failures. Index sync failure warns but does not block startup. Post-startup connection drops out of scope for v1.
+
+NFR-8: Brownfield Compatibility — Node.js 18+, Express 4.x retained. Ports frozen: frontend 3000, backend 3001. API contract frozen (endpoints, params, status codes, JSON shapes, error messages).
+
+NFR-9: Testing — Existing `search-validation.test.js` updated to pass `MONGODB_URI` from environment when spawning server. No new test framework or mock layer for MVP.
 
 ### Additional Requirements
 
-- **Packages:** Implement `sg-search-service` (Express API) and `sg-search` (Vanilla JS UI) as separate deliverables.
-- **CSV data:** Learners create `users.csv` manually to understand structure; parse via string-split or `csv-parse` for low boilerplate.
-- **Static serving:** Frontend must be served over HTTP (e.g. `npx serve`), not `file://`, to avoid fetch failures.
-- **CLI assumptions:** `gh` CLI assumed available; documentation must include manual `git` fallbacks.
-- **Troubleshooting:** Document fixes for CORS (`app.use(cors())`), port conflicts (`$env:PORT=3002`), and fetch/CORS from `file://`.
-- **Excluded:** React 19, Zustand, Tailwind, task-manager architecture from prior artifacts.
+- **Starter Template (Brownfield Extension):** No re-scaffold. First implementation step is `npm install mongoose@^9.6.3 dotenv@^17.4.2` in `sg-search-service`, then create `models/User.js`, `lib/db.js`, `lib/seed.js`, and refactor `server.js` — not a greenfield starter.
+- **Module Structure:** `models/User.js` (schema + model), `lib/db.js` (`connectDB()`), `lib/seed.js` (`seedFromCsv()` bulkWrite upsert), `server.js` (Express + async `main()` orchestration). No `services/`, `repositories/`, or `controllers/` directories.
+- **Startup Sequence:** `dotenv.config()` → validate `MONGODB_URI` → `await connectDB()` → `await seedFromCsv()` → log user count → `app.listen(PORT)`. HTTP must not accept traffic until seed completes.
+- **Database Configuration:** MongoDB Atlas; database `sg-search-lab` (override via `MONGODB_DB`); collection `users` (override via `MONGODB_COLLECTION`).
+- **Search Query Pattern:** `User.find(filter).select('firstName lastName email department city -_id').lean()`. Case-insensitive exact match via `$regex: ^${escapedValue}$` with `$options: 'i'`. RegExp special characters must be escaped.
+- **Seed Strategy:** `csv-parse/sync` → validate required columns → `User.bulkWrite` with `updateOne` + `upsert: true` on `email`. Never `insertMany`.
+- **Error Message Strings (frozen):** `"At least one of firstName or lastName is required"`, `"firstName must not exceed 50 characters"`, startup failures use `console.error('Startup failed:', message)` + `process.exit(1)`.
+- **Integration Test Update:** `test/search-validation.test.js` must pass `MONGODB_URI` from environment when spawning `server.js`.
+- **Lab Script Updates:** `setup-lab.ps1` and `verify-lab.ps1` at repo root; `LAB-03-Search-App-Guide.md` architecture diagram and timing cheatsheet updated.
+- **Environment Files:** `.env.example` in `sg-search-service/` with `MONGODB_URI=` placeholder; `.env` gitignored.
+- **Implementation Sequence:** (1) dependencies + `.env.example`, (2) `models/User.js`, (3) `lib/db.js`, (4) `lib/seed.js`, (5) refactor `server.js`, (6) update integration test, (7) update lab artifacts.
+- **Validation Gate:** Run `verify-lab.ps1` and `npm test` (with `MONGODB_URI` set) before marking stories complete.
+- **Anti-Patterns (forbidden):** In-memory user cache after seed, `insertMany` for seeding, exposing `_id`/`__v` in API responses, files under `sg-search/`, committed secrets.
 
 ### UX Design Requirements
 
-UX-DR1: Visual identity shall follow Apple.com-inspired clarity with **Glassmorphism** as the selected direction (soft blurs, translucent cards, airy feel).
-UX-DR2: Implement color tokens — soft gradient background (#f5f5f7 to #ffffff), glass card `rgba(255, 255, 255, 0.7)` with `backdrop-filter: blur(20px)`, text `#1d1d1f`, accent `#0071e3`, semi-transparent white borders `rgba(255, 255, 255, 0.3)`.
-UX-DR3: Typography shall use system-ui / -apple-system stack at 17px base, semi-bold headings with tight tracking, body line-height 1.5.
-UX-DR4: Layout shall be centered single-column with max-width 800px, card padding 24–32px, and clear vertical rhythm between sections.
-UX-DR5: Border radius 12px for cards/containers and 8px for buttons/inputs; subtle soft shadows only.
-UX-DR6: Inputs shall be large with subtle borders and focus glow; primary buttons solid accent blue with white text; secondary buttons ghost or light gray.
-UX-DR7: Results table shall use light horizontal dividers only (no vertical grid lines).
-UX-DR8: Form factor shall target desktop web at 1280px and above.
-UX-DR9: Information architecture shall include header (lab title/instructions), search form, inline status, and results table.
-UX-DR10: Microcopy — empty: "Enter a name to begin searching."; loading: "Searching database..."; success: "Found {n} results."; error: "Search failed. Please check the backend connection."
-UX-DR11: Pressing Enter in a search field shall trigger the same async search as the Search button.
-UX-DR12: Clear shall empty inputs and remove results table and status message immediately.
-UX-DR13: Use generous whitespace; avoid heavy borders, clashing colors, and overcrowded layout.
+_N/A — UX excluded per user confirmation. Frontend frozen per Architecture (SM-3). No changes under `sg-search/`._
 
 ### FR Coverage Map
 
-FR1: Epic 1 — Story 1.4 (Search API endpoint)
-FR2: Epic 1 — Story 1.4 (Search filtering rules)
-FR3: Epic 1 — Story 1.3 (Health check)
-FR4: Epic 1 — Story 1.5 (CORS configuration)
-FR5: Epic 2 — Story 2.2 (Search form)
-FR6: Epic 2 — Stories 2.3, 2.5 (Async search and Clear)
-FR7: Epic 2 — Story 2.4 (Results table)
-FR8: Epic 2 — Stories 2.2, 2.3 (Status area)
-FR9: Epic 2 — Story 2.4 (XSS escaping)
-FR10: Epic 3 — Story 3.3 (Lab guide)
-FR11: Epic 3 — Stories 3.1, 3.2 (PowerShell scripts)
-FR12: Epic 3 — Story 3.4 (VS Code launch.json)
-FR13: Epic 3 — Story 3.5 (GitHub workflow docs)
+FR-1: Epic 1 — Environment-based MongoDB connection
+FR-2: Epic 1 — Health endpoint (unchanged contract)
+FR-3: Epic 1 — Mongoose User schema & model
+FR-4: Epic 1 — Automatic startup seed from CSV
+FR-5: Epic 1 — Retire runtime CSV loading
+FR-6: Epic 1 — Search query semantics (preserved)
+FR-7: Epic 1 — Mongoose query implementation
+FR-8: Epic 1 — Optional search indexes
+FR-9: Epic 1 — Service README updates
+FR-10: Epic 2 — Lab guide updates
+FR-11: Epic 2 — Setup script updates
+FR-12: Epic 2 — Verification script compatibility
+FR-13: Epic 1 — Repository hygiene (`.env`, `.env.example`)
 
 ## Epic List
 
-### Epic 1: Search API Service
-A lab developer can query user records from a running Express API with correct filtering, health verification, and CORS for the frontend.
-**FRs covered:** FR1, FR2, FR3, FR4
+### Epic 1: Participant MongoDB Lab Backend
 
-### Epic 2: Search Web Experience
-A lab developer can search by name in the browser with a glassmorphism UI, see results and status feedback, and interact safely without page reloads.
-**FRs covered:** FR5, FR6, FR7, FR8, FR9 | **UX-DRs covered:** UX-DR1 through UX-DR13
+A workshop participant configures `.env`, runs `npm start`, and gets a MongoDB-backed search API that behaves identically to the CSV version — frontend unchanged, verification test matrix passes.
 
-### Epic 3: Lab Tooling & Facilitation
-A facilitator and developer can set up, verify, debug, and complete the lab using scripts, documentation, and IDE tooling.
-**FRs covered:** FR10, FR11, FR12, FR13
+**FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-9, FR-13
 
-## Epic 1: Search API Service
+### Epic 2: Facilitator Workshop Readiness
 
-Lab developers can run a local Express service that reads `users.csv`, exposes health and search endpoints, and accepts cross-origin requests from the lab frontend.
+A facilitator or maintainer can onboard the next cohort using updated guides and scripts — setup validates MongoDB readiness, verification passes, and all artifacts describe the MongoDB workflow (not CSV runtime loading).
 
-### Story 1.1: Initialize Express Search Service
+**FRs covered:** FR-10, FR-11, FR-12
 
-As a lab developer,
-I want a scaffolded `sg-search-service` Express project with sample `users.csv`,
-So that I can start backend development without manual project wiring.
+## Epic 1: Participant MongoDB Lab Backend
 
-**Acceptance Criteria:**
+A workshop participant configures `.env`, runs `npm start`, and gets a MongoDB-backed search API that behaves identically to the CSV version — frontend unchanged, verification test matrix passes.
 
-**Given** the `sg-search-service` folder does not exist or is empty
-**When** the project is initialized per lab conventions
-**Then** it contains `package.json`, `server.js` (or entry), and a sample `users.csv` with headers matching PRD fields (firstName, lastName, email, department, city)
-**And** `npm start` launches the server on port 3001 by default (NFR5)
-**And** Node.js v18+ is documented as the minimum runtime (NFR4)
-**And** no authentication middleware is added (NFR7)
+### Story 1.1: Project Foundation & Secure Environment Setup
 
-### Story 1.2: Load and Parse CSV User Data
-
-As a lab developer,
-I want the service to load `users.csv` into memory at startup,
-So that search requests can filter records without a database.
+As a **developer participant**,
+I want Mongoose dependencies and a secure environment template,
+So that I can configure my Atlas connection without committing secrets.
 
 **Acceptance Criteria:**
 
-**Given** a valid `users.csv` exists in the service directory
-**When** the server starts
-**Then** all rows are parsed into an in-memory array of user objects
-**And** parsing uses string-split or `csv-parse` with minimal boilerplate (NFR3)
-**And** a missing or malformed CSV produces a clear startup error in the console
-**And** no database or ORM is introduced (NFR8)
+**Given** the brownfield `sg-search-service` codebase
+**When** I run `npm install` in `sg-search-service`
+**Then** `package.json` includes `mongoose@^9.6.3` and `dotenv@^17.4.2` as dependencies
 
-### Story 1.3: Implement Health Check Endpoint
+**Given** the project root and `sg-search-service/`
+**When** I inspect version control configuration
+**Then** `.env` is listed in `.gitignore` and no real connection strings appear in committed files
 
-As a lab developer,
-I want a `GET /health` endpoint,
-So that I can confirm the API is running before testing search.
+**Given** `sg-search-service/.env.example` exists
+**When** I open the file
+**Then** it contains `MONGODB_URI=` as a placeholder with no real credentials
+
+**Given** I have copied `.env.example` to `.env` with a valid facilitator `MONGODB_URI`
+**When** I inspect `server.js`
+**Then** `require('dotenv').config()` is called at process entry before any `MONGODB_URI` reads
+
+---
+
+### Story 1.2: Mongoose User Model & Schema
+
+As a **developer participant**,
+I want a validated `User` Mongoose model,
+So that user records in MongoDB have a consistent, enforceable document shape.
 
 **Acceptance Criteria:**
+
+**Given** `sg-search-service/models/User.js` exists
+**When** I inspect the schema definition
+**Then** fields `firstName`, `lastName`, `email`, `department`, and `city` are `String`, `required: true`, `trim: true`
+
+**Given** the `User` schema
+**When** I inspect the `email` field
+**Then** it has `unique: true` to support idempotent upsert on auto-seed
+
+**Given** the `User` schema
+**When** optional search indexes are declared
+**Then** an index on `firstName` and/or `lastName` may be added for performance only (not required for correctness)
+
+**Given** a document missing a required field
+**When** Mongoose validation runs during seed or save
+**Then** the operation is rejected with a validation error
+
+**Given** the model is exported
+**When** I inspect the export
+**Then** it uses `mongoose.model('User', userSchema)` bound to the `users` collection
+
+---
+
+### Story 1.3: Atlas Connection, Auto-Seed & Startup Lifecycle
+
+As a **developer participant**,
+I want `npm start` to connect Atlas, auto-seed from CSV, and listen on port 3001,
+So that I am ready to search with one command and no manual seed step.
+
+**Acceptance Criteria:**
+
+**Given** `MONGODB_URI` is unset or empty
+**When** I run `npm start`
+**Then** the process logs `Startup failed: MONGODB_URI is required` and exits with code 1 before accepting HTTP traffic
+
+**Given** `MONGODB_URI` is invalid or Atlas is unreachable
+**When** I run `npm start`
+**Then** the process logs `Startup failed:` with the Mongoose connection error and exits with code 1
+
+**Given** `lib/db.js` exports `connectDB()`
+**When** connection succeeds
+**Then** `mongoose.connect(MONGODB_URI)` completes before any seed or listen step
+
+**Given** `users.csv` is missing or malformed
+**When** auto-seed runs during startup
+**Then** the process logs `Startup failed:` with a descriptive message and exits with code 1
+
+**Given** a valid `MONGODB_URI` and `users.csv` with 12 data rows
+**When** I run `npm start`
+**Then** `lib/seed.js` upserts all records via `bulkWrite` with `upsert: true` on `email` before `app.listen`
+
+**Given** startup completes successfully
+**When** I read the console output
+**Then** it logs connected database info and user count (e.g. `Connected to MongoDB — 12 users in users collection`)
+
+**Given** I run `npm start` a second time with the same fixture
+**When** auto-seed completes
+**Then** no duplicate logical users are created (upsert on unique `email`)
 
 **Given** the server is running
-**When** a client sends `GET /health`
-**Then** the response status is 200
-**And** the JSON body includes `status: "ok"` (FR3)
+**When** I call `GET /health`
+**Then** I receive HTTP 200 with `{ "status": "ok" }` without a per-request MongoDB round-trip
 
-### Story 1.4: Implement Search API with Filtering Rules
+**Given** `server.js` after this story
+**When** I inspect startup behavior
+**Then** runtime CSV loading for search is removed; `users.csv` is seed input only; startup logs reference MongoDB not CSV parsing for search
 
-As a lab developer,
-I want a `GET /api/search` endpoint with firstName and lastName query parameters,
-So that I can retrieve matching users as JSON for the frontend.
+---
 
-**Acceptance Criteria:**
+### Story 1.4: MongoDB-Backed Search with Preserved API Contract
 
-**Given** the server has loaded user records from CSV
-**When** a client calls `GET /api/search?firstName=john` (case variants included)
-**Then** the response is JSON `{ count, results[] }` where each result includes firstName, lastName, email, department, city (FR1)
-**And** matching is case-insensitive (FR2)
-**And** only provided query fields are used for filtering; omitted fields act as wildcards (FR2)
-**And** when both `firstName` and `lastName` are missing or empty, the API returns HTTP 400 with a clear error message (FR2)
-**And** `results` contains only matching records and `count` equals `results.length`
-
-### Story 1.5: Enable CORS for Lab Frontend
-
-As a lab developer,
-I want CORS configured for the frontend origin,
-So that browser fetch calls from port 3000 succeed during the lab.
+As a **developer participant**,
+I want the search API to query MongoDB with identical behavior to the CSV implementation,
+So that the existing frontend and test matrix work without modification.
 
 **Acceptance Criteria:**
 
-**Given** the Express app is running on port 3001
-**When** a browser on `http://localhost:3000` calls `/api/search` or `/health`
-**Then** the response includes appropriate CORS headers and the request succeeds (FR4)
-**And** `cors` middleware is applied in `server.js` (troubleshooting requirement)
-**And** the service remains localhost-only with no cloud deployment (NFR10)
+**Given** the backend is running with auto-seed completed
+**When** I call `GET /api/search?firstName=John&lastName=Smith`
+**Then** I receive HTTP 200 with `{ "count": 1, "results": [...] }` containing one matching user
 
-## Epic 2: Search Web Experience
+**Given** the backend is running
+**When** I call `GET /api/search?firstName=John`
+**Then** I receive `{ "count": 3, "results": [...] }`
 
-Lab developers can use a single-page Vanilla JS search UI with Apple-inspired glassmorphism styling, async search, and safe rendering of results.
+**Given** the backend is running
+**When** I call `GET /api/search?lastName=Smith`
+**Then** I receive `{ "count": 2, "results": [...] }`
 
-### Story 2.1: Build Glassmorphism Page Shell
+**Given** the backend is running
+**When** I call `GET /api/search?firstName=john`
+**Then** I receive `{ "count": 3, "results": [...] }` (case-insensitive exact match)
 
-As a lab developer,
-I want the search page layout and global styles applied,
-So that the UI matches the approved visual direction before adding behavior.
+**Given** the backend is running
+**When** I call `GET /api/search` with no non-empty `firstName` or `lastName`
+**Then** I receive HTTP 400 with `{ "error": "At least one of firstName or lastName is required" }`
 
-**Acceptance Criteria:**
+**Given** the backend is running
+**When** I call `GET /api/search?firstName=Nobody`
+**Then** I receive `{ "count": 0, "results": [] }` with HTTP 200
 
-**Given** the `sg-search` frontend package exists
-**When** the page is opened at 1280px viewport width or wider
-**Then** the layout is a centered single column with max-width 800px (UX-DR4, UX-DR8)
-**And** the page uses a soft gradient background and glass card with `backdrop-filter: blur(20px)` per DESIGN tokens (UX-DR1, UX-DR2)
-**And** typography uses the system-ui stack at 17px base with semi-bold headings (UX-DR3)
-**And** cards use 12px radius and buttons/inputs use 8px radius with subtle shadows (UX-DR5)
-**And** the header shows lab title and brief instructions above the search area (UX-DR9)
-**And** only Vanilla HTML/CSS/JS is used with no UI frameworks (NFR9)
-**And** whitespace is generous without overcrowding (UX-DR13)
+**Given** the backend is running
+**When** I call `GET /api/search` with `firstName` longer than 50 characters
+**Then** I receive HTTP 400 with `{ "error": "firstName must not exceed 50 characters" }`
 
-### Story 2.2: Implement Search Form and Status Area
+**Given** any successful search response
+**When** I inspect each result object
+**Then** it contains only `firstName`, `lastName`, `email`, `department`, `city` — no `_id` or `__v`
 
-As a lab developer,
-I want First Name and Last Name fields with Search, Clear, and a status region,
-So that I have the core interaction surface for the lab.
+**Given** the search implementation uses `User.find(filter).select('firstName lastName email department city -_id').lean()`
+**When** I compare results against the README test matrix
+**Then** every case returns identical `count` and equivalent `results` vs. the CSV baseline
 
-**Acceptance Criteria:**
+**Given** search input contains RegExp special characters
+**When** the query is built
+**Then** values are escaped before `$regex` construction with `^...$` and `$options: 'i'`
 
-**Given** the glassmorphism shell from Story 2.1
-**When** the page loads with no prior search
-**Then** First Name and Last Name inputs and Search (primary) and Clear (secondary) controls are visible (FR5, UX-DR6)
-**And** the status area shows "Enter a name to begin searching." (UX-DR10)
-**And** inputs have focus glow styling and buttons follow primary/secondary styles (UX-DR6)
-**And** clicking Search does not reload the page (FR6)
+**Given** optional indexes fail to sync at startup
+**When** the server starts
+**Then** a warning is logged but startup is not blocked
 
-### Story 2.3: Connect Async Search to Backend API
+---
 
-As a lab developer,
-I want Search and Enter to fetch results from the API without reloading,
-So that I can verify end-to-end search during the lab.
+### Story 1.5: Integration Test & Service Documentation
 
-**Acceptance Criteria:**
-
-**Given** the backend is running on port 3001 and the frontend is served over HTTP on port 3000 (not `file://`)
-**When** the user clicks Search or presses Enter in a name field (UX-DR11)
-**Then** the status shows "Searching database..." during the request (UX-DR10, FR8)
-**And** on success the status shows "Found {n} results." where n matches the API count (UX-DR10, FR8)
-**And** on network or server failure the status shows "Search failed. Please check the backend connection." (UX-DR10, FR8)
-**And** the page does not perform a full reload at any point (FR6, NFR5)
-**And** fetch targets `http://localhost:3001/api/search` with current field values as query params (FR1 integration)
-
-### Story 2.4: Render Results Table with XSS Protection
-
-As a lab developer,
-I want search hits displayed in a clean table with escaped values,
-So that I can read results safely even if CSV data contains HTML-like characters.
+As a **developer participant**,
+I want updated integration tests and service README,
+So that I can verify search parity and follow accurate MongoDB setup instructions.
 
 **Acceptance Criteria:**
 
-**Given** a successful search response with one or more results
-**When** results are rendered
-**Then** a table displays columns firstName, lastName, email, department, city (FR7)
-**And** the table uses horizontal dividers only with no vertical grid lines (UX-DR7)
-**And** every cell value is HTML-escaped before insertion into the DOM (FR9)
-**And** when count is zero, the table is empty and status still reflects "Found 0 results."
+**Given** `MONGODB_URI` is set in the environment
+**When** I run `npm test` in `sg-search-service`
+**Then** `test/search-validation.test.js` spawns `server.js` with `MONGODB_URI` inherited and all tests pass
 
-### Story 2.5: Implement Clear and Form Reset
+**Given** `MONGODB_URI` is unset
+**When** I run `npm test`
+**Then** tests are skipped or document the prerequisite without false failures
 
-As a lab developer,
-I want Clear to reset the form and UI state instantly,
-So that I can run another search without refreshing the page.
+**Given** `sg-search-service/README.md`
+**When** I read setup instructions
+**Then** they describe Atlas connection, `.env` configuration, and `npm start` (connect → auto-seed → listen) — not runtime CSV loading or manual seed commands
 
-**Acceptance Criteria:**
+**Given** `sg-search-service/README.md`
+**When** I inspect the test matrix table
+**Then** expected counts are unchanged from the CSV baseline
 
-**Given** the form has values and/or results and status from a prior search
-**When** the user clicks Clear
-**Then** First Name and Last Name fields are emptied immediately (UX-DR12, FR6)
-**And** the results table and status message are removed or reset to the initial empty prompt (UX-DR12, FR6)
-**And** no full page reload occurs (FR6)
+**Given** `sg-search-service/README.md`
+**When** I read troubleshooting guidance
+**Then** it covers missing `MONGODB_URI`, Atlas connectivity, and auto-seed failures
 
-## Epic 3: Lab Tooling & Facilitation
+**Given** `sg-search-service/README.md`
+**When** I look for model documentation
+**Then** it references the `User` model location (`models/User.js`)
 
-Facilitators and developers can bootstrap, verify, debug, and document completion of the Search App lab on Windows.
+**Given** no files under `sg-search/` were modified
+**When** I run the lab with MongoDB backend
+**Then** the frontend works without changes (NFR-3)
 
-### Story 3.1: Create setup-lab.ps1 Bootstrap Script
+---
 
-As a facilitator,
-I want a one-command lab setup script,
-So that developers reach a runnable environment quickly (NFR1, NFR6).
+## Epic 2: Facilitator Workshop Readiness
 
-**Acceptance Criteria:**
+A facilitator or maintainer can onboard the next cohort using updated guides and scripts — setup validates MongoDB readiness, verification passes, and all artifacts describe the MongoDB workflow (not CSV runtime loading).
 
-**Given** a Windows machine with Node.js v18+ installed
-**When** `setup-lab.ps1` is executed from the project root in PowerShell
-**Then** dependencies for `sg-search-service` and `sg-search` are installed
-**And** a sample or template `users.csv` is present where the lab expects it
-**And** the script prints next steps to start backend (3001) and frontend (3000) (NFR5, FR11)
-**And** the script avoids optional complexity beyond lab needs (NFR3)
+### Story 2.1: Lab Guide MongoDB Workflow
 
-### Story 3.2: Create verify-lab.ps1 Validation Script
-
-As a facilitator,
-I want an automated verification script,
-So that I can confirm the lab environment works before or after the session (NFR2).
+As a **lab facilitator**,
+I want the timed lab guide updated for MongoDB setup,
+So that participants complete the backend phase within the 05–15 minute window without CSV parsing steps.
 
 **Acceptance Criteria:**
 
-**Given** backend and frontend are started per lab instructions
-**When** `verify-lab.ps1` runs in PowerShell
-**Then** it checks `GET /health` returns 200 with `status: ok`
-**And** it performs a sample `GET /api/search` and confirms JSON with `count` and `results`
-**And** it reports pass/fail with actionable error messages (FR11)
-**And** failures reference troubleshooting fixes (CORS, port conflict, `file://` serving)
+**Given** `LAB-03-Search-App-Guide.md`
+**When** I read the architecture diagram
+**Then** it shows `sg-search-service` → MongoDB Atlas instead of runtime `users.csv` loading
 
-### Story 3.3: Author LAB-03-Search-App-Guide.md
+**Given** the lab guide prerequisites section
+**When** I review requirements
+**Then** they include facilitator-provided Atlas connection string and `.env` file — not local MongoDB install or Docker
 
-As a lab developer,
-I want a step-by-step guide in Senior Developer/Architect tone,
-So that I can complete the lab within the 30-minute window (NFR1, NFR2).
+**Given** the backend phase (05–15 min block)
+**When** I follow the steps
+**Then** they cover `.env` setup, Mongoose `User` model awareness, and `npm start` — not CSV parsing in `server.js` and not a separate seed command
 
-**Acceptance Criteria:**
+**Given** the troubleshooting table
+**When** I review entries
+**Then** it includes missing `MONGODB_URI`, Atlas connectivity / IP allowlist, and auto-seed failure (missing/malformed `users.csv`)
 
-**Given** the guide file `LAB-03-Search-App-Guide.md` exists
-**When** a developer follows it sequentially
-**Then** it covers setup, backend (05–15 min), frontend (15–25 min), and wrap-up (25–30 min) per PRD timing cheatsheet (FR10)
-**And** it documents CORS, port override (`$env:PORT=3002`), and `npx serve` vs `file://` troubleshooting
-**And** it instructs manual `users.csv` creation to teach data structure
-**And** tone is expert, concise, and encouraging without exceeding complexity guard (NFR3)
+**Given** the facilitator timing cheatsheet
+**When** I review the backend phase
+**Then** it reflects MongoDB setup instead of CSV authoring/loading
 
-### Story 3.4: Add VS Code launch.json Debug Configurations
+**Given** the lab guide
+**When** I search for CSV runtime loading instructions
+**Then** no steps tell participants to implement CSV parsing in `server.js` for search
 
-As a lab developer,
-I want VS Code debug configurations for backend and frontend,
-So that I can set breakpoints during the lab (FR12).
+---
 
-**Acceptance Criteria:**
+### Story 2.2: Workshop Setup & Verification Scripts
 
-**Given** a `.vscode/launch.json` in the workspace
-**When** the developer starts the "Search API" configuration
-**Then** Node attaches to `sg-search-service` on port 3001
-**And** a separate configuration launches or attaches to the frontend served on port 3000
-**And** configurations are documented in the lab guide
-
-### Story 3.5: Document GitHub Commit Workflow with Fallbacks
-
-As a lab developer,
-I want documented GitHub commit steps including manual remote setup,
-So that I can finish the lab even without the `gh` CLI (FR13).
+As a **lab facilitator**,
+I want setup and verification scripts aligned with MongoDB readiness,
+So that pre-flight checks and smoke tests validate the new persistence model without changing test expectations.
 
 **Acceptance Criteria:**
 
-**Given** the lab guide or a linked doc section on Git workflow
-**When** the developer follows GitHub commit instructions
-**Then** steps cover `git add`, `git commit`, and push using `gh` when available
-**And** manual `git remote add origin <url>` and `git push -u origin main` fallback steps are included when `gh` is unavailable (FR13)
-**And** no secrets or credentials are hard-coded in scripts or docs
+**Given** `setup-lab.ps1` at repo root
+**When** I run it before the lab
+**Then** it verifies Node 18+, runs `npm install` in `sg-search-service`, and checks for `.env` with non-empty `MONGODB_URI`
+
+**Given** `.env` is missing or `MONGODB_URI` is empty
+**When** I run `setup-lab.ps1`
+**Then** it prints facilitator instructions for obtaining the shared connection string
+
+**Given** `setup-lab.ps1`
+**When** I review its checks
+**Then** it confirms `users.csv` exists as seed input only and does not prompt for a manual seed step
+
+**Given** the backend is running with auto-seed completed
+**When** I run `verify-lab.ps1` from repo root
+**Then** all existing smoke tests pass with unchanged expected counts and field validation
+
+**Given** `verify-lab.ps1`
+**When** I review troubleshooting hints
+**Then** they mention MongoDB connection failures where relevant
+
+**Given** `verify-lab.ps1`
+**When** I compare test cases to the pre-MongoDB version
+**Then** no test case expectations (counts, fields, endpoints) were modified
+
+**Given** all four lab artifacts (README, lab guide, setup script, verify script)
+**When** I review them together
+**Then** they consistently describe the MongoDB workflow with no conflicting CSV runtime-loading instructions (NFR-4)

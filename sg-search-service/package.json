@@ -8,11 +8,13 @@
     "test": "node test/search-validation.test.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "csv-parse": "^5.6.0",
-    "express": "^4.21.0"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "mongoose": "^9.6.3"
   }
 }

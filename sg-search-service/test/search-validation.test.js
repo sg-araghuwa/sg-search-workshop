@@ -7,6 +7,17 @@ const ROOT = path.join(__dirname, '..');
 const PORT = 3099;
 const BASE = `http://127.0.0.1:${PORT}`;
 
+require('dotenv').config({ path: path.join(ROOT, '.env') });
+
+const MONGODB_URI = process.env.MONGODB_URI?.trim();
+if (!MONGODB_URI) {
+  console.log(
+    'search-validation: skipped — MONGODB_URI not set.\n' +
+      '  Copy .env.example to .env and paste the facilitator Atlas URI, then re-run npm test.'
+  );
+  process.exit(0);
+}
+
 function request(pathname) {
   return new Promise((resolve, reject) => {
     http
@@ -25,7 +36,7 @@ function request(pathname) {
 
 const child = spawn(process.execPath, ['server.js'], {
   cwd: ROOT,
-  env: { ...process.env, PORT: String(PORT) },
+  env: { ...process.env, MONGODB_URI, PORT: String(PORT) },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
@@ -48,7 +59,7 @@ async function waitReady() {
 
     const ok = await request('/api/search?firstName=John');
     assert.strictEqual(ok.status, 200);
-    assert.ok(ok.body.count >= 1);
+    assert.strictEqual(ok.body.count, 3);
 
     const longName = 'a'.repeat(51);
     const bad = await request(`/api/search?firstName=${longName}&lastName=Smith`);
