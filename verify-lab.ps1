@@ -62,12 +62,17 @@ function Get-LabTroubleshootingHint {
                 '  npm start'
                 'Port in use? Try: $env:PORT=3002; npm start'
                 'Then re-run: .\verify-lab.ps1 -ApiBaseUrl http://127.0.0.1:3002'
+                'MongoDB startup failed?'
+                '  Ensure sg-search-service/.env exists with MONGODB_URI set'
+                '  Check terminal for ''Startup failed: MONGODB_URI is required'' or Atlas connection errors'
+                '  Ask facilitator about Atlas IP allowlist / VPN'
             ) -join "`n"
         }
         'NotFound' {
             return @(
                 'GET /api/search returned 404.'
-                'Implement Story 1.4 search route in sg-search-service/server.js'
+                '  Confirm API base URL (default http://127.0.0.1:3001)'
+                '  Ensure npm start completed without ''Startup failed:'' errors'
             ) -join "`n"
         }
         'PortConflict' {
@@ -79,8 +84,12 @@ function Get-LabTroubleshootingHint {
         }
         'SearchFailed' {
             return @(
-                'Search response did not match users.csv fixture.'
-                'Check users.csv and README search matrix in sg-search-service/'
+                'Search count mismatch after MongoDB migration?'
+                '  Restart: cd sg-search-service; npm start'
+                '  Confirm log: ''Connected to MongoDB — N users in users collection'''
+                '  Auto-seed upserts from users.csv at startup - no manual seed step'
+                '  See README search matrix in sg-search-service/'
+                '(Facilitator) Shared Atlas may log N>12 users; verify still expects search counts 1 and 3.'
             ) -join "`n"
         }
         'HealthFailed' {
@@ -109,45 +118,57 @@ function Get-ConnectionFailureHint {
     return Get-LabTroubleshootingHint -FailureType ConnectionRefused
 }
 
-function Get-WebStatusCode {
-    param($Exception)
-    if ($Exception.Response -and $Exception.Response.StatusCode) {
-        return [int]$Exception.Response.StatusCode
-    }
-    return $null
-}
-
 function Invoke-LabGet {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Uri
     )
 
+    # HttpWebRequest reads error response bodies reliably on PowerShell 5.1
+    # (Invoke-WebRequest often returns an empty body on 4xx/5xx).
+    $request = [System.Net.HttpWebRequest]::Create($Uri)
+    $request.Method = 'GET'
+    $request.Timeout = $TimeoutSec * 1000
+    $request.UserAgent = 'verify-lab.ps1'
+
     try {
-        $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec $TimeoutSec
-        return @{
-            Ok = $true
-            StatusCode = [int]$response.StatusCode
-            Content = $response.Content
+        $response = $request.GetResponse()
+        try {
+            $stream = $response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            try {
+                $content = $reader.ReadToEnd()
+            } finally {
+                $reader.Close()
+            }
+            return @{
+                Ok = $true
+                StatusCode = [int]$response.StatusCode
+                Content = $content
+            }
+        } finally {
+            $response.Close()
         }
-    } catch {
-        $code = Get-WebStatusCode -Exception $_.Exception
-        $body = $null
-        if ($_.Exception.Response) {
-            $stream = $_.Exception.Response.GetResponseStream()
+    } catch [System.Net.WebException] {
+        $webResponse = $_.Exception.Response
+        $code = $null
+        $content = $null
+        if ($webResponse) {
+            $code = [int]$webResponse.StatusCode
+            $stream = $webResponse.GetResponseStream()
             if ($stream) {
                 $reader = New-Object System.IO.StreamReader($stream)
                 try {
-                    $body = $reader.ReadToEnd()
+                    $content = $reader.ReadToEnd()
                 } finally {
-                    $reader.Dispose()
+                    $reader.Close()
                 }
             }
         }
         return @{
             Ok = $false
             StatusCode = $code
-            Content = $body
+            Content = $content
             Error = $_.Exception.Message
         }
     }

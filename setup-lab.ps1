@@ -9,7 +9,7 @@ Set-Location -LiteralPath $PSScriptRoot
 function Test-NodeVersion {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
-        Write-Error 'Node.js is not on PATH. Install Node.js 18+ and retry.'
+        Write-Error 'Node.js is not on PATH. Install Node.js 20.19.0+ and retry.'
         exit 1
     }
 
@@ -20,17 +20,38 @@ function Test-NodeVersion {
     }
 
     $versionStr = ($versionOutput | Out-String).Trim()
-    if ($versionStr -match '^v?(\d+)') {
+    $major = $null
+    $minor = 0
+    $patch = 0
+
+    if ($versionStr -match '^v?(\d+)\.(\d+)\.(\d+)') {
         $major = [int]$Matches[1]
-        if ($major -lt 18) {
-            Write-Error "Node.js 18+ required; found $versionStr"
-            exit 1
-        }
-        Write-Host "Node $versionStr OK" -ForegroundColor DarkGray
+        $minor = [int]$Matches[2]
+        $patch = [int]$Matches[3]
+    } elseif ($versionStr -match '^v?(\d+)\.(\d+)') {
+        $major = [int]$Matches[1]
+        $minor = [int]$Matches[2]
+    } elseif ($versionStr -match '^v?(\d+)') {
+        $major = [int]$Matches[1]
     } else {
         Write-Error "Could not parse Node version from: $versionStr"
         exit 1
     }
+
+    if ($major -lt 18) {
+        Write-Error "Node.js 20.19.0+ required; found $versionStr"
+        exit 1
+    }
+
+    $meetsMongoose = ($major -gt 20) -or ($major -eq 20 -and $minor -ge 19)
+    if (-not $meetsMongoose) {
+        Write-Host ('WARN - Node.js 20.19.0+ recommended (Mongoose 9.x); found ' + $versionStr) -ForegroundColor Yellow
+        Write-Host '       Upgrade Node before npm start if mongoose install or startup fails.' -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-Host "Node $versionStr OK" -ForegroundColor DarkGray
+    return $true
 }
 
 function Test-NpmPresent {
@@ -72,6 +93,63 @@ function Invoke-NpmInstall {
     }
 }
 
+function Write-FacilitatorEnvInstructions {
+    param([string]$ExamplePath)
+
+    Write-Host ''
+    Write-Host 'Facilitator: provide the shared Atlas connection string securely before the lab.' -ForegroundColor Yellow
+    Write-Host 'Participant steps:' -ForegroundColor Yellow
+    Write-Host '  cd sg-search-service' -ForegroundColor White
+    Write-Host '  Copy-Item .env.example .env' -ForegroundColor White
+    Write-Host '  Paste MONGODB_URI into .env (quote the value if it contains # or = characters)' -ForegroundColor White
+    if ($ExamplePath -and (Test-Path $ExamplePath)) {
+        Write-Host '  See comments in sg-search-service/.env.example for quoting guidance.' -ForegroundColor DarkGray
+    }
+    Write-Host 'See sg-search-service/README.md and LAB-03-Search-App-Guide.md Step 2 for details.' -ForegroundColor DarkGray
+}
+
+function Test-MongodbEnv {
+    param([string]$BackendDir)
+
+    $envPath = Join-Path $BackendDir '.env'
+    $examplePath = Join-Path $BackendDir '.env.example'
+
+    if (-not (Test-Path $envPath)) {
+        Write-Host 'WARN - sg-search-service/.env not found' -ForegroundColor Yellow
+        Write-FacilitatorEnvInstructions -ExamplePath $examplePath
+        return $false
+    }
+
+    $uri = $null
+    try {
+        $lines = Get-Content -LiteralPath $envPath -Encoding UTF8
+    } catch {
+        Write-Host 'WARN - Cannot read sg-search-service/.env' -ForegroundColor Yellow
+        Write-FacilitatorEnvInstructions -ExamplePath $examplePath
+        return $false
+    }
+
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim().TrimStart([char]0xFEFF)
+        if ($trimmed -match '^\s*MONGODB_URI\s*=\s*(.+)$' -and -not $trimmed.StartsWith('#')) {
+            $candidate = $Matches[1].Trim().Trim('"').Trim("'")
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $uri = $candidate
+                break
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($uri)) {
+        Write-Host 'WARN - MONGODB_URI is missing or empty in .env' -ForegroundColor Yellow
+        Write-FacilitatorEnvInstructions -ExamplePath $examplePath
+        return $false
+    }
+
+    Write-Host 'MongoDB .env configured (MONGODB_URI present)' -ForegroundColor DarkGray
+    return $true
+}
+
 function Ensure-UsersCsv {
     param(
         [Parameter(Mandatory = $true)]
@@ -79,11 +157,11 @@ function Ensure-UsersCsv {
     )
 
     if (Test-Path $CsvPath) {
-        Write-Host 'users.csv already present - left unchanged.' -ForegroundColor DarkGray
+        Write-Host 'users.csv seed fixture present (auto-seed input only)' -ForegroundColor DarkGray
         return
     }
 
-    Write-Host "Creating sample users.csv..." -ForegroundColor Yellow
+    Write-Host 'Creating users.csv seed fixture (auto-seed input only)...' -ForegroundColor Yellow
     $sample = @'
 firstName,lastName,email,department,city
 John,Smith,john.smith@example.com,Engineering,Seattle
@@ -105,36 +183,52 @@ Henry,Anderson,henry.anderson@example.com,Operations,Boston
 }
 
 function Write-NextSteps {
-    param([bool]$FrontendReady)
+    param(
+        [bool]$FrontendReady,
+        [bool]$MongodbReady,
+        [bool]$EnvFileExists,
+        [bool]$NodeReady = $true
+    )
 
     Write-Host ''
     Write-Host '=== Lab setup complete ===' -ForegroundColor Green
     Write-Host ''
+    if (-not $NodeReady) {
+        Write-Host 'Note: Upgrade to Node.js 20.19.0+ before npm start (Mongoose 9.x requirement).' -ForegroundColor Yellow
+        Write-Host ''
+    }
     Write-Host 'Terminal 1 - Backend (port 3001):' -ForegroundColor Cyan
     Write-Host '  cd sg-search-service' -ForegroundColor White
-    Write-Host '  npm start' -ForegroundColor White
+    if (-not $MongodbReady) {
+        if ($EnvFileExists) {
+            Write-Host '  Edit .env: set non-empty MONGODB_URI (get value from facilitator)' -ForegroundColor White
+        } else {
+            Write-Host '  Copy-Item .env.example .env    # paste facilitator MONGODB_URI' -ForegroundColor White
+        }
+    }
+    Write-Host '  npm start                      # connect -> auto-seed -> listen' -ForegroundColor White
     Write-Host ''
     if ($FrontendReady) {
         Write-Host 'Terminal 2 - Frontend (port 3000):' -ForegroundColor Cyan
         Write-Host '  cd sg-search' -ForegroundColor White
         Write-Host '  npm start' -ForegroundColor White
     } else {
-        Write-Host 'Terminal 2 - Frontend (port 3000, after Epic 2):' -ForegroundColor Cyan
+        Write-Host 'Terminal 2 - Frontend (port 3000):' -ForegroundColor Cyan
         Write-Host '  cd sg-search' -ForegroundColor White
         Write-Host '  npm start' -ForegroundColor DarkGray
-        Write-Host '  (sg-search not set up yet - complete Epic 2 frontend first)' -ForegroundColor Yellow
+        Write-Host '  (sg-search not found - skip frontend until available)' -ForegroundColor Yellow
     }
     Write-Host ''
     Write-Host 'Smoke test (with backend running):' -ForegroundColor Cyan
     Write-Host '  curl http://127.0.0.1:3001/health' -ForegroundColor White
     Write-Host ''
-    Write-Host 'Full verification: run verify-lab.ps1 after both apps are up (Story 3.2).' -ForegroundColor DarkGray
+    Write-Host 'Full verification: .\verify-lab.ps1 (backend must be running)' -ForegroundColor DarkGray
 }
 
 Write-Host 'Search App Lab - setup' -ForegroundColor Green
 Write-Host "Project root: $PSScriptRoot`n" -ForegroundColor DarkGray
 
-Test-NodeVersion
+$nodeReady = Test-NodeVersion
 Test-NpmPresent
 
 $backendDir = Join-Path $PSScriptRoot 'sg-search-service'
@@ -147,6 +241,8 @@ if (-not (Test-Path (Join-Path $backendDir 'package.json'))) {
 }
 
 Ensure-UsersCsv -CsvPath $usersCsv
+$envFileExists = Test-Path (Join-Path $backendDir '.env')
+$mongodbReady = Test-MongodbEnv -BackendDir $backendDir
 Invoke-NpmInstall -PackageDir $backendDir -Label 'sg-search-service'
 
 $frontendReady = $false
@@ -158,5 +254,5 @@ if (Test-Path $frontendPkg) {
     Write-Warning 'sg-search/ not found or missing package.json - skip frontend install (Epic 2). Backend setup completed.'
 }
 
-Write-NextSteps -FrontendReady $frontendReady
+Write-NextSteps -FrontendReady $frontendReady -MongodbReady $mongodbReady -EnvFileExists $envFileExists -NodeReady $nodeReady
 exit 0

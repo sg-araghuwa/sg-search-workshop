@@ -2,9 +2,9 @@
 
 **Duration:** 30 minutes  
 **Audience:** Senior developers and architects building a minimal full-stack search experience  
-**Stack:** Node.js + Express (CSV-backed API) · Vanilla HTML/CSS/JS (glassmorphism UI)
+**Stack:** Node.js + Express (MongoDB Atlas API) · Vanilla HTML/CSS/JS (glassmorphism UI)
 
-You will stand up a read-only user directory search: mock data in CSV, a REST API on port **3001**, and a static frontend on port **3000**. By the end you will have verified search behavior, committed your work, and optionally pushed to GitHub.
+You will stand up a read-only user directory search: user data persisted in **MongoDB Atlas** (auto-seeded from a CSV fixture at startup), a REST API on port **3001** with an unchanged search contract, and a static frontend on port **3000**. By the end you will have verified search behavior, committed your work, and optionally pushed to GitHub.
 
 ---
 
@@ -13,7 +13,7 @@ You will stand up a read-only user directory search: mock data in CSV, a REST AP
 | Minutes | Phase | Goal |
 |---------|-------|------|
 | **00–05** | Setup | Repo layout, Node check, `setup-lab.ps1`, optional VS Code debug |
-| **05–15** | Backend | `users.csv`, `package.json`, `server.js`, smoke test API |
+| **05–15** | Backend | `.env` + `MONGODB_URI`, review `models/User.js`, `npm start`, smoke test API |
 | **15–25** | Frontend | `index.html`, `styles.css`, `app.js`, browser search |
 | **25–30** | Wrap-up + Git | `verify-lab.ps1`, manual checks, `git init` / commit / GitHub |
 
@@ -26,14 +26,15 @@ Stay on pace—each section is sized for the block above. If you finish early, r
 ### What you are building
 
 ```
-┌─────────────────┐     fetch (CORS)      ┌──────────────────────┐
-│  sg-search/     │ ────────────────────► │  sg-search-service/  │
-│  port 3000      │   GET /api/search     │  port 3001           │
-│  (npx serve)    │                       │  reads users.csv     │
-└─────────────────┘                       └──────────────────────┘
+┌─────────────────┐     fetch (CORS)      ┌──────────────────────┐     Mongoose      ┌─────────────────┐
+│  sg-search/     │ ────────────────────► │  sg-search-service/  │ ────────────────► │  MongoDB Atlas  │
+│  port 3000      │   GET /api/search     │  port 3001           │   users coll.   │  (shared cluster) │
+│  (npx serve)    │                       │  auto-seed from CSV  │                   │                 │
+└─────────────────┘                       └──────────────────────┘                   └─────────────────┘
+                                          users.csv = seed input only (startup)
 ```
 
-- **Backend** (`sg-search-service/`): Loads `users.csv` at startup, exposes `GET /health` and `GET /api/search?firstName=&lastName=` with case-insensitive exact match.
+- **Backend** (`sg-search-service/`): Connects to MongoDB Atlas, idempotently upserts the `users` collection from `users.csv` at every startup, queries the Mongoose `User` model, and exposes `GET /health` and `GET /api/search?firstName=&lastName=` with case-insensitive exact match.
 - **Frontend** (`sg-search/`): Form-driven search, XSS-safe rendering, status microcopy aligned with the PRD.
 
 ### Prerequisites
@@ -41,23 +42,30 @@ Stay on pace—each section is sized for the block above. If you finish early, r
 | Requirement | Notes |
 |-------------|--------|
 | **Windows** with **PowerShell** | All commands below assume PowerShell from the workshop repo root |
-| **Node.js 18+** | `node -v` should show v18 or higher |
+| **Node.js 20.19.0+** | `node -v` should show v20.19.0 or higher (Mongoose 9.x requirement) |
 | **npm** | Bundled with Node |
 | **Git** | For the final commit step |
 | **GitHub CLI (`gh`)** | Optional; manual `git remote` fallback provided |
 | **VS Code** | Optional; use `.vscode/launch.json` for one-click debug |
+| **Facilitator Atlas URI** | Shared `MONGODB_URI` distributed securely before lab |
+| **`sg-search-service/.env`** | Copy from `.env.example`; never commit real credentials |
+| **Network access** | Atlas IP allowlist configured by facilitator — no local MongoDB install or Docker |
 
 ### Repository layout (after lab)
 
 ```
 sg-search-workshop/
-├── setup-lab.ps1          # Installs backend deps, checks users.csv
+├── setup-lab.ps1          # Installs backend deps, checks .env/MONGODB_URI and users.csv seed fixture
 ├── verify-lab.ps1         # API smoke tests (run with backend up)
 ├── .vscode/launch.json    # Debug API, frontend, or compound
 ├── sg-search-service/
 │   ├── package.json
 │   ├── server.js
-│   └── users.csv
+│   ├── .env.example       # Template for MONGODB_URI (copy to .env)
+│   ├── models/User.js     # Mongoose schema for search + auto-seed
+│   ├── lib/db.js          # Atlas connection
+│   ├── lib/seed.js        # Auto-seed from users.csv at startup
+│   └── users.csv          # Seed fixture only (not read at search time)
 └── sg-search/
     ├── package.json
     ├── index.html
@@ -78,17 +86,17 @@ From the repository root (the folder containing `setup-lab.ps1` and this guide):
 .\setup-lab.ps1
 ```
 
-`setup-lab.ps1` verifies Node.js, runs `npm install` in `sg-search-service`, confirms `users.csv` exists, and prints the two-terminal run instructions. The frontend uses `npx serve` and does not require a separate `npm install`.
+`setup-lab.ps1` verifies Node.js (warns if below 20.19.0), runs `npm install` in `sg-search-service`, confirms the `users.csv` seed fixture exists, and checks that `sg-search-service/.env` contains a non-empty `MONGODB_URI`. If `.env` is missing or empty, it prints facilitator instructions — create `.env` in Step 2 before `npm start`. It prints the two-terminal run instructions. The frontend uses `npx serve` and does not require a separate `npm install`.
 
 ### Debugging with VS Code
 
 Open the workshop folder in VS Code or Cursor. Press **Ctrl+Shift+D** to open **Run and Debug**, pick a configuration from the dropdown, and press **F5**.
 
-**Prerequisites:** Node.js 18+ on your PATH. No extra extensions required — the built-in JavaScript debugger handles Node and Chrome.
+**Prerequisites:** Node.js 20.19.0+ on your PATH. No extra extensions required — the built-in JavaScript debugger handles Node and Chrome.
 
 | Configuration | Purpose | Port |
 |---------------|---------|------|
-| **Search API** | Debug `sg-search-service/server.js` (CSV load, `/api/search`, CORS) | 3001 |
+| **Search API** | Debug `sg-search-service/server.js` (MongoDB connect, auto-seed, `/api/search`, CORS) | 3001 |
 | **Search Frontend (serve)** | Start static server via `npx serve -l 3000 -s .` in `sg-search` | 3000 |
 | **Search Frontend (Chrome)** | Open Chrome with debugger attached to `app.js` | 3000 (page) |
 | **Search App (API + Frontend)** | Compound — starts API + serve together | 3001 + 3000 |
@@ -114,6 +122,7 @@ curl "http://127.0.0.1:3001/api/search?firstName=John"
 | `npx` not found on Windows | Ensure Node.js is on PATH; try `"runtimeExecutable": "npx.cmd"` in the serve config |
 | Port already in use | Stop other terminals or use `$env:PORT=3002` for the API config env block |
 | Chrome config fails to connect | Confirm serve is running on port 3000 before launching Chrome |
+| Search API debug exits immediately | Missing `MONGODB_URI` — create `sg-search-service/.env` before F5 (see Step 2) |
 
 #### Full `.vscode/launch.json`
 
@@ -128,6 +137,7 @@ curl "http://127.0.0.1:3001/api/search?firstName=John"
       "cwd": "${workspaceFolder}/sg-search-service",
       "program": "${workspaceFolder}/sg-search-service/server.js",
       "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/sg-search-service/.env",
       "env": {
         "PORT": "3001"
       },
@@ -168,11 +178,11 @@ New-Item -ItemType Directory -Force -Path sg-search-service, sg-search
 
 ---
 
-## Step 1: Mock Data — `users.csv` (05 min, overlaps Setup)
+## Step 1: Seed Fixture — `users.csv` (05 min, overlaps Setup)
 
-Create the backend data file manually so you understand the shape of each record before the API loads it. Path: `sg-search-service\users.csv`.
+The workshop repo includes `sg-search-service\users.csv` as a **12-row seed fixture**. The API does **not** read this file at search time — `lib/seed.js` upserts each row into MongoDB Atlas at startup (matched by unique `email`), keeping the fixture in sync without a separate seed command.
 
-**Why manual?** The search API reads plain CSV at startup — no database, no ORM. Knowing the columns now prevents typos (`firstName` vs `FirstName`) that break parsing later.
+**Why review it?** Knowing the column shape prevents confusion when auto-seed fails or verification counts look wrong.
 
 **Columns (required):**
 
@@ -180,201 +190,81 @@ Create the backend data file manually so you understand the shape of each record
 |--------|---------|
 | `firstName` | Given name; matched case-insensitively by `/api/search` |
 | `lastName` | Family name; same matching rules |
-| `email` | Contact field returned in results (not searchable in this lab) |
+| `email` | Unique key for idempotent auto-seed upsert |
 | `department` | Org unit for display in the results table |
 | `city` | Location for display in the results table |
 
-**Rows:** 12 data rows (header + 12 = 13 lines total). Include duplicate first and last names (e.g. three `John` rows, two `Smith` rows) so the verification matrix in Step 4 is meaningful.
+**Rows:** 12 data rows (header + 12 = 13 lines total). The fixture includes duplicate first and last names (e.g. three `John` rows, two `Smith` rows) so the verification matrix in Step 4 is meaningful.
 
-Copy the sample below into `sg-search-service\users.csv`, or paste via PowerShell:
+Open `sg-search-service\users.csv` in your editor and confirm it matches the workshop fixture. If the file is missing or corrupted, restore it from the repo — do not recreate it as your primary backend task.
 
-```powershell
-@'
-firstName,lastName,email,department,city
-John,Smith,john.smith@example.com,Engineering,Seattle
-John,Doe,john.doe@example.com,Marketing,Portland
-John,Williams,john.williams@example.com,Sales,Denver
-Jane,Smith,jane.smith@example.com,HR,Seattle
-Alice,Johnson,alice.johnson@example.com,Engineering,Austin
-Bob,Johnson,bob.johnson@example.com,Finance,Chicago
-Carol,Davis,carol.davis@example.com,Marketing,Portland
-David,Miller,david.miller@example.com,Sales,Denver
-Emma,Wilson,emma.wilson@example.com,HR,Seattle
-Frank,Brown,frank.brown@example.com,Engineering,Austin
-Grace,Taylor,grace.taylor@example.com,Finance,Chicago
-Henry,Anderson,henry.anderson@example.com,Operations,Boston
-'@ | Set-Content -Encoding utf8 sg-search-service\users.csv
-```
-
-> **Tip:** If startup fails with a missing-column error after exporting from Excel, re-save as UTF-8 CSV or recreate the file from the block above.
-
-Confirm row count (expect **12** users):
+**Optional sanity check** — confirm row count (expect **12** users):
 
 ```powershell
 (Import-Csv sg-search-service\users.csv).Count
 ```
 
+> **Tip:** If auto-seed fails with a missing-column error, re-save as UTF-8 CSV or restore the fixture from the repo.
+
 ---
 
 ## Step 2: Backend — `sg-search-service` (05–15)
 
-### 2.1 `package.json`
+The backend is already implemented in the workshop repo. Your job in this phase is **configuration and awareness** — not building CSV parsing in `server.js`.
 
-Create `sg-search-service\package.json`:
-
-```json
-{
-  "name": "sg-search-service",
-  "version": "1.0.0",
-  "private": true,
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "cors": "^2.8.6",
-    "csv-parse": "^5.6.0",
-    "express": "^4.21.0"
-  }
-}
-```
-
-Install dependencies:
+### 2.1 Configure environment (`.env`)
 
 ```powershell
 cd sg-search-service
-npm install
-cd ..
+Copy-Item .env.example .env
 ```
 
-### 2.2 `server.js`
+Open `.env` and paste the facilitator-provided Atlas connection string:
 
-Create `sg-search-service\server.js` (Express + CORS + csv-parse + health + search):
-
-```javascript
-const express = require('express');
-const cors = require('cors');
-const { readFileSync } = require('fs');
-const { join } = require('path');
-const { parse } = require('csv-parse/sync');
-
-const REQUIRED = ['firstName', 'lastName', 'email', 'department', 'city'];
-const CSV_PATH = join(__dirname, 'users.csv');
-
-function loadUsers() {
-  let raw;
-  try {
-    raw = readFileSync(CSV_PATH, 'utf8');
-  } catch (err) {
-    throw new Error(`users.csv not found at ${CSV_PATH}: ${err.message}`);
-  }
-
-  let records;
-  try {
-    records = parse(raw, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_column_count: false,
-    });
-  } catch (err) {
-    throw new Error(`users.csv parse error: ${err.message}`);
-  }
-
-  if (records.length === 0) {
-    throw new Error('users.csv has no data rows (header only or empty file)');
-  }
-
-  const headers = Object.keys(records[0]);
-  for (const col of REQUIRED) {
-    if (!headers.includes(col)) {
-      throw new Error(
-        `users.csv missing required column "${col}". Found: ${headers.join(', ')}`
-      );
-    }
-  }
-
-  return records;
-}
-
-function queryValue(value) {
-  if (value === undefined || value === null) return null;
-  const trimmed = String(value).trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function filterUsers(allUsers, firstName, lastName) {
-  const fn = queryValue(firstName);
-  const ln = queryValue(lastName);
-
-  if (fn === null && ln === null) {
-    return null;
-  }
-
-  return allUsers.filter((user) => {
-    if (fn !== null && user.firstName.toLowerCase() !== fn.toLowerCase()) {
-      return false;
-    }
-    if (ln !== null && user.lastName.toLowerCase() !== ln.toLowerCase()) {
-      return false;
-    }
-    return true;
-  });
-}
-
-let users = [];
-
-try {
-  users = loadUsers();
-  console.log(`Loaded ${users.length} users from users.csv`);
-} catch (err) {
-  console.error(`Startup failed: ${err.message}`);
-  process.exit(1);
-}
-
-const app = express();
-app.use(cors());
-
-const PORT = process.env.PORT || 3001;
-
-app.get('/', (req, res) => {
-  res.type('text').send('sg-search-service is running.');
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-app.get('/api/search', (req, res) => {
-  const results = filterUsers(users, req.query.firstName, req.query.lastName);
-
-  if (results === null) {
-    return res.status(400).json({
-      error: 'At least one of firstName or lastName is required',
-    });
-  }
-
-  res.json({ count: results.length, results });
-});
-
-app.listen(PORT, () => {
-  console.log(`sg-search-service listening on http://localhost:${PORT}`);
-});
+```
+MONGODB_URI=mongodb+srv://...
 ```
 
-### 2.3 Start the API
+Quote the value if it contains `#` or `=` characters (see comments in `.env.example`). Never commit `.env` to Git.
 
-**Terminal 1:**
+### 2.2 Understand the User model
+
+Open `models/User.js` and note:
+
+| Field | Role |
+|-------|------|
+| `firstName`, `lastName`, `email`, `department`, `city` | Required, trimmed strings |
+| `email` | Unique — enables idempotent auto-seed upsert |
+| Collection | `users` |
+
+Search queries this model via Mongoose; API responses return the five fields only (no `_id` or `__v`). See `sg-search-service/README.md` for the full API matrix and troubleshooting depth.
+
+### 2.3 Install dependencies and start the API
 
 ```powershell
-cd sg-search-service
+npm install   # if not already done via setup-lab.ps1
 npm start
 ```
 
-Expect: `Loaded 12 users from users.csv` and `listening on http://localhost:3001`.
+**Terminal 1** — keep this running for the rest of the lab.
+
+**Startup sequence** (before HTTP listens):
+
+1. Load `.env` via `dotenv`
+2. Validate `MONGODB_URI` (fail-fast if missing)
+3. Connect to MongoDB Atlas (`lib/db.js`)
+4. Sync indexes on the `User` model (warn-only on failure — `Index sync warning:` is non-fatal; startup continues)
+5. Upsert fixture rows from `users.csv` into the `users` collection (`lib/seed.js`)
+6. Bind port and listen
+
+Expected output:
+
+```
+Connected to MongoDB — 12 users in users collection
+sg-search-service listening on http://localhost:3001
+```
+
+If startup fails, the process logs `Startup failed:` and exits — fix `.env`, Atlas connectivity, or the seed fixture before continuing.
 
 ### 2.4 Backend smoke test (PowerShell)
 
@@ -385,7 +275,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:3001/health"
 Invoke-RestMethod -Uri "http://127.0.0.1:3001/api/search?firstName=John&lastName=Smith"
 ```
 
-You should see `status: ok` and `count: 1` for John Smith.
+You should see `status: ok` and `count: 1` for John Smith. Counts match the verification matrix in Step 4 — same API contract as before, now backed by MongoDB.
 
 ---
 
@@ -764,6 +654,8 @@ Open **http://127.0.0.1:3000** in your browser. Search **John** + **Smith** — 
 
 ## Step 4: Verification (25–28)
 
+**Prerequisite:** Backend must complete MongoDB connect and auto-seed before running verification. Confirm you see `Connected to MongoDB — 12 users in users collection` in Terminal 1.
+
 ### Automated: `verify-lab.ps1`
 
 With the backend running on port 3001, from the repo root:
@@ -772,11 +664,11 @@ With the backend running on port 3001, from the repo root:
 .\verify-lab.ps1
 ```
 
-The script exercises health, search cases, HTTP 400 with no params, and a CORS header check. All steps should **PASS**.
+The script exercises health, two search cases, and HTTP 400 with no params. All API checks should **PASS**. (Browser CORS is validated when the frontend runs on port 3000 — not inside this script.)
 
 ### Verification matrix (API contract)
 
-These counts are fixed by the lab `users.csv`. Use them to validate your implementation.
+These counts are fixed by the 12-user seed fixture (loaded into MongoDB at startup). Use them to validate your implementation.
 
 | Query | Expected `count` | Notes |
 |-------|------------------|--------|
@@ -864,25 +756,28 @@ If the remote already exists, use `git remote set-url origin <url>` instead of `
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| `Startup failed: MONGODB_URI is required` | Missing or empty `.env` | Copy `.env.example` → `.env`, paste facilitator URI |
+| `Startup failed:` + connection error | Invalid URI or Atlas unreachable | Verify URI; ask facilitator about IP allowlist / VPN |
+| `Startup failed:` + seed/CSV error | Missing or malformed `users.csv` | Restore fixture from repo; check column headers |
+| Search `count` mismatch | Auto-seed didn't run or wrong fixture | Restart `npm start`; confirm `Connected to MongoDB — 12 users in users collection` in logs |
+| VS Code Search API debug exits immediately | Debug env lacks `MONGODB_URI` | Ensure `sg-search-service/.env` exists or use `envFile` in launch config |
 | Browser: *failed to fetch* / CORS error | API missing CORS middleware | Ensure `app.use(cors())` appears **before** routes in `server.js` |
 | `EADDRINUSE` on 3001 | Port in use | `$env:PORT=3002; npm start` in `sg-search-service`; update `API_BASE` in `app.js` to match |
 | UI works from disk but not search | Opened via `file://` | Run `cd sg-search; npm start` and use **http://127.0.0.1:3000** |
-| `verify-lab.ps1` all FAIL | Backend not running | Start `npm start` in `sg-search-service` first |
-| `Loaded 0 users` / startup error | Bad or missing CSV | Recreate `users.csv` from Step 1; check column names exactly |
-| `count` mismatch | Wrong CSV rows | Match the 12-row sample exactly (verification matrix is data-dependent) |
+| `verify-lab.ps1` all FAIL | Backend not running | Start `npm start` in `sg-search-service` first (MongoDB must be connected) |
 | `Invoke-WebRequest` 400 test fails | Using wrong host | Prefer `127.0.0.1:3001` consistently with the lab scripts |
 
 ---
 
 ## What you accomplished
 
-- CSV-backed user store with startup validation  
-- REST search API with health check and input guards  
+- MongoDB Atlas-backed user store with Mongoose `User` model and auto-seed from CSV fixture  
+- REST search API with health check and input guards (unchanged contract)  
 - Accessible, XSS-safe frontend with glassmorphism styling  
 - Scripted setup and verification for repeatable workshops  
 - Optional VS Code compound debug and GitHub-ready commit  
 
-**Next:** Extend with partial match, pagination, or swap CSV for a real database—the boundaries you built here stay the same.
+**Next:** Extend with partial match, pagination, or additional filters—the API and frontend boundaries you built here stay the same.
 
 ---
 

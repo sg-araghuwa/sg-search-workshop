@@ -1,5 +1,5 @@
-# generated: 2026-06-04
-# last_updated: 2026-06-04
+# generated: 2026-06-05
+# last_updated: 2026-06-05
 # project: AI_POC_Lab4
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,8 +34,8 @@
 # - Developer typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-06-04
-last_updated: 2026-06-04
+generated: 2026-06-05
+last_updated: 2026-06-05
 project: AI_POC_Lab4
 project_key: NOKEY
 tracking_system: file-system
@@ -43,25 +43,14 @@ story_location: "{project-root}/_bmad-output/implementation-artifacts"
 
 development_status:
   epic-1: done
-  1-1-initialize-express-search-service: done
-  1-2-load-and-parse-csv-user-data: done
-  1-3-implement-health-check-endpoint: done
-  1-4-implement-search-api-with-filtering-rules: done
-  1-5-enable-cors-for-lab-frontend: done
-  epic-1-retrospective: optional
+  1-1-project-foundation-secure-environment-setup: done
+  1-2-mongoose-user-model-schema: done
+  1-3-atlas-connection-auto-seed-startup-lifecycle: done
+  1-4-mongodb-backed-search-with-preserved-api-contract: done
+  1-5-integration-test-service-documentation: done
+  epic-1-retrospective: done
 
   epic-2: done
-  2-1-build-glassmorphism-page-shell: done
-  2-2-implement-search-form-and-status-area: done
-  2-3-connect-async-search-to-backend-api: done
-  2-4-render-results-table-with-xss-protection: done
-  2-5-implement-clear-and-form-reset: done
-  epic-2-retrospective: optional
-
-  epic-3: done
-  3-1-create-setup-lab-ps1-bootstrap-script: done
-  3-2-create-verify-lab-ps1-validation-script: done
-  3-3-author-lab-03-search-app-guide-md: done
-  3-4-add-vscode-launch-json-debug-configurations: done
-  3-5-document-github-commit-workflow-with-fallbacks: done
-  epic-3-retrospective: done
+  2-1-lab-guide-mongodb-workflow: done
+  2-2-workshop-setup-verification-scripts: done
+  epic-2-retrospective: done
