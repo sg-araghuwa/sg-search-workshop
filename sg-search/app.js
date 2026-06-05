@@ -4,9 +4,9 @@ const form = document.getElementById("search-form");
 const firstNameInput = document.getElementById("firstName");
 const firstNameCharHint = document.getElementById("firstName-char-hint");
 const lastNameInput = document.getElementById("lastName");
-const clearBtn = document.getElementById("clear-btn");
+const clearBtn = document.getElementById("btn-clear");
 const statusEl = document.getElementById("status");
-const resultsContainer = document.getElementById("results-container");
+const resultsPanel = document.getElementById("results-panel");
 const resultsBody = document.getElementById("results-body");
 
 const MAX_FIRST_NAME_LENGTH = 50;
@@ -15,14 +15,9 @@ const FIRST_NAME_TOO_LONG_MESSAGE = `First name must be ${MAX_FIRST_NAME_LENGTH}
 const LOADING_MESSAGE = "Searching database...";
 const ERROR_MESSAGE = "Search failed. Please check the backend connection.";
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+const COLUMNS = ["firstName", "lastName", "email", "department", "city"];
+
+let searchGeneration = 0;
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -39,9 +34,9 @@ function updateFirstNameCharCount() {
   );
 }
 
-function clearResults() {
-  resultsBody.innerHTML = "";
-  resultsContainer.hidden = true;
+function clearResultsPanel() {
+  resultsBody.textContent = "";
+  resultsPanel.hidden = true;
 }
 
 function resetUi() {
@@ -49,30 +44,28 @@ function resetUi() {
   lastNameInput.value = "";
   updateFirstNameCharCount();
   setStatus(EMPTY_MESSAGE);
-  clearResults();
+  clearResultsPanel();
 }
 
 function renderResults(results) {
-  resultsBody.innerHTML = "";
+  resultsBody.textContent = "";
 
   if (!Array.isArray(results) || results.length === 0) {
-    resultsContainer.hidden = true;
+    resultsPanel.hidden = true;
     return;
   }
 
   for (const user of results) {
     const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${escapeHtml(user.firstName)}</td>
-      <td>${escapeHtml(user.lastName)}</td>
-      <td>${escapeHtml(user.email)}</td>
-      <td>${escapeHtml(user.department)}</td>
-      <td>${escapeHtml(user.city)}</td>
-    `;
+    for (const key of COLUMNS) {
+      const cell = document.createElement("td");
+      cell.textContent = user[key] ?? "";
+      row.appendChild(cell);
+    }
     resultsBody.appendChild(row);
   }
 
-  resultsContainer.hidden = false;
+  resultsPanel.hidden = false;
 }
 
 async function runSearch() {
@@ -81,13 +74,13 @@ async function runSearch() {
 
   if (!firstName && !lastName) {
     setStatus(EMPTY_MESSAGE);
-    clearResults();
+    clearResultsPanel();
     return;
   }
 
   if (firstName.length > MAX_FIRST_NAME_LENGTH) {
     setStatus(FIRST_NAME_TOO_LONG_MESSAGE);
-    clearResults();
+    clearResultsPanel();
     return;
   }
 
@@ -95,10 +88,15 @@ async function runSearch() {
   if (firstName) params.set("firstName", firstName);
   if (lastName) params.set("lastName", lastName);
 
+  const generation = ++searchGeneration;
   setStatus(LOADING_MESSAGE);
 
   try {
     const response = await fetch(`${API_BASE}/api/search?${params.toString()}`);
+
+    if (generation !== searchGeneration) {
+      return;
+    }
 
     if (!response.ok) {
       setStatus(ERROR_MESSAGE);
@@ -106,10 +104,18 @@ async function runSearch() {
     }
 
     const data = await response.json();
+
+    if (generation !== searchGeneration) {
+      return;
+    }
+
     const count = typeof data.count === "number" ? data.count : 0;
     setStatus(`Found ${count} results.`);
     renderResults(Array.isArray(data.results) ? data.results : []);
   } catch {
+    if (generation !== searchGeneration) {
+      return;
+    }
     setStatus(ERROR_MESSAGE);
   }
 }
